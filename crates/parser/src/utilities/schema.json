@@ -1,0 +1,1715 @@
+{
+    "file_description": {
+        "self": [
+            "fileDescription"
+        ],
+        "attributes": {},
+        "children": {
+            "file_content": {
+                "self": [
+                    "fileContent"
+                ],
+                "attributes": {},
+                "children": {
+                    "referenceable_param_group_ref": {
+                        "self": [
+                            "referenceableParamGroupRef"
+                        ],
+                        "attributes": {
+                            "ref": [
+                                "ref"
+                            ]
+                        }
+                    },
+                    "cv_param": {
+                        "self": [
+                            "cvParam"
+                        ],
+                        "attributes": {}
+                    },
+                    "user_param": {
+                        "self": [
+                            "userParam"
+                        ],
+                        "attributes": {}
+                    }
+                }
+            },
+            "source_file_list": {
+                "self": [
+                    "sourceFileList"
+                ],
+                "attributes": {
+                    "count": [
+                        "count"
+                    ]
+                },
+                "children": {
+                    "source_file": {
+                        "self": [
+                            "sourceFile"
+                        ],
+                        "attributes": {
+                            "id": [
+                                "id"
+                            ],
+                            "name": [
+                                "name",
+                                "sourceFileName"
+                            ],
+                            "location": [
+                                "location",
+                                "sourceFileLocation"
+                            ]
+                        },
+                        "children": {
+                            "referenceable_param_group_ref": {
+                                "self": [
+                                    "referenceableParamGroupRef"
+                                ],
+                                "attributes": {
+                                    "ref": [
+                                        "ref"
+                                    ]
+                                }
+                            },
+                            "cv_param": {
+                                "self": [
+                                    "cvParam"
+                                ],
+                                "attributes": {}
+                            },
+                            "user_param": {
+                                "self": [
+                                    "userParam"
+                                ],
+                                "attributes": {}
+                            }
+                        }
+                    }
+                }
+            },
+            "contact": {
+                "self": [
+                    "contact"
+                ],
+                "attributes": {},
+                "children": {
+                    "referenceable_param_group_ref": {
+                        "self": [
+                            "referenceableParamGroupRef"
+                        ],
+                        "attributes": {
+                            "ref": [
+                                "ref"
+                            ]
+                        }
+                    },
+                    "cv_param": {
+                        "self": [
+                            "cvParam"
+                        ],
+                        "attributes": {}
+                    },
+                    "user_param": {
+                        "self": [
+                            "userParam"
+                        ],
+                        "attributes": {}
+                    }
+                }
+            }
+        }
+    },
+    "referenceable_param_group_list": {
+        "self": [
+            "referenceableParamGroupList"
+        ],
+        "attributes": {
+            "count": [
+                "count"
+            ]
+        },
+        "children": {
+            "referenceable_param_group": {
+                "self": [
+                    "referenceableParamGroup"
+                ],
+                "attributes": {
+                    "id": [
+                        "id"
+                    ]
+                },
+                "children": {
+                    "cv_param": {
+                        "self": [
+                            "cvParam"
+                        ],
+                        "attributes": {}
+                    },
+                    "user_param": {
+                        "self": [
+                            "userParam"
+                        ],
+                        "attributes": {}
+                    }
+                }
+            }
+        }
+    },
+    "sample_list": {
+        "self": [
+            "sampleList"
+        ],
+        "attributes": {
+            "count": [
+                "count"
+            ]
+        },
+        "children": {
+            "sample": {
+                "self": [
+                    "sample"
+                ],
+                "attributes": {
+                    "id": [
+                        "id"
+                    ],
+                    "name": [
+                        "name"
+                    ]
+                },
+                "children": {
+                    "referenceable_param_group_ref": {
+                        "self": [
+                            "referenceableParamGroupRef"
+                        ],
+                        "attributes": {
+                            "ref": [
+                                "ref"
+                            ]
+                        }
+                    },
+                    "cv_param": {
+                        "self": [
+                            "cvParam"
+                        ],
+                        "attributes": {}
+                    },
+                    "user_param": {
+                        "self": [
+                            "userParam"
+                        ],
+                        "attributes": {}
+                    }
+                }
+            }
+        }
+    },
+    "instrument_list": {
+        "self": [
+            "instrumentList",
+            "instrumentConfigurationList"
+        ],
+        "attributes": {
+            "count": [
+                "count"
+            ]
+        },
+        "children": {
+            "instrument": {
+                "self": [
+                    "instrument",
+                    "instrumentConfiguration"
+                ],
+                "attributes": {
+                    "id": [
+                        "id"
+                    ],
+                    "scan_settings_ref": [
+                        "scanSettingsRef"
+                    ]
+                },
+                "children": {
+                    "cv_param": {
+                        "self": [
+                            "cvParam"
+                        ],
+                        "attributes": {}
+                    },
+                    "user_param": {
+                        "self": [
+                            "userParam"
+                        ],
+                        "attributes": {}
+                    },
+                    "referenceable_param_group_ref": {
+                        "self": [
+                            "referenceableParamGroupRef"
+                        ],
+                        "attributes": {
+                            "ref": [
+                                "ref"
+                            ]
+                        }
+                    },
+                    "component_list": {
+                        "self": [
+                            "componentList"
+                        ],
+                        "attributes": {
+                            "count": [
+                                "count"
+                            ]
+                        },
+                        "children": {
+                            "source": {
+                                "self": [
+                                    "source"
+                                ],
+                                "attributes": {
+                                    "order": [
+                                        "order"
+                                    ]
+                                },
+                                "children": {
+                                    "referenceable_param_group_ref": {
+                                        "self": [
+                                            "referenceableParamGroupRef"
+                                        ],
+                                        "attributes": {
+                                            "ref": [
+                                                "ref"
+                                            ]
+                                        }
+                                    },
+                                    "cv_param": {
+                                        "self": [
+                                            "cvParam"
+                                        ],
+                                        "attributes": {}
+                                    },
+                                    "user_param": {
+                                        "self": [
+                                            "userParam"
+                                        ],
+                                        "attributes": {}
+                                    }
+                                }
+                            },
+                            "analyzer": {
+                                "self": [
+                                    "analyzer"
+                                ],
+                                "attributes": {
+                                    "order": [
+                                        "order"
+                                    ]
+                                },
+                                "children": {
+                                    "referenceable_param_group_ref": {
+                                        "self": [
+                                            "referenceableParamGroupRef"
+                                        ],
+                                        "attributes": {
+                                            "ref": [
+                                                "ref"
+                                            ]
+                                        }
+                                    },
+                                    "cv_param": {
+                                        "self": [
+                                            "cvParam"
+                                        ],
+                                        "attributes": {}
+                                    },
+                                    "user_param": {
+                                        "self": [
+                                            "userParam"
+                                        ],
+                                        "attributes": {}
+                                    }
+                                }
+                            },
+                            "detector": {
+                                "self": [
+                                    "detector"
+                                ],
+                                "attributes": {
+                                    "order": [
+                                        "order"
+                                    ]
+                                },
+                                "children": {
+                                    "referenceable_param_group_ref": {
+                                        "self": [
+                                            "referenceableParamGroupRef"
+                                        ],
+                                        "attributes": {
+                                            "ref": [
+                                                "ref"
+                                            ]
+                                        }
+                                    },
+                                    "cv_param": {
+                                        "self": [
+                                            "cvParam"
+                                        ],
+                                        "attributes": {}
+                                    },
+                                    "user_param": {
+                                        "self": [
+                                            "userParam"
+                                        ],
+                                        "attributes": {}
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "software_ref": {
+                        "self": [
+                            "instrumentSoftwareRef",
+                            "softwareRef"
+                        ],
+                        "attributes": {
+                            "ref": [
+                                "ref"
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "software_list": {
+        "self": [
+            "softwareList"
+        ],
+        "attributes": {
+            "count": [
+                "count"
+            ]
+        },
+        "children": {
+            "software": {
+                "self": [
+                    "software"
+                ],
+                "attributes": {
+                    "id": [
+                        "id"
+                    ],
+                    "version": [
+                        "version"
+                    ]
+                },
+                "children": {
+                    "software_param": {
+                        "self": [
+                            "softwareParam"
+                        ],
+                        "attributes": {
+                            "cv_ref": [
+                                "cvRef",
+                                "cvLabel"
+                            ],
+                            "accession": [
+                                "accession"
+                            ],
+                            "name": [
+                                "name"
+                            ],
+                            "version": [
+                                "version"
+                            ]
+                        }
+                    },
+                    "cv_param": {
+                        "self": [
+                            "cvParam"
+                        ],
+                        "attributes": {}
+                    }
+                }
+            }
+        }
+    },
+    "data_processing_list": {
+        "self": [
+            "dataProcessingList"
+        ],
+        "attributes": {
+            "count": [
+                "count"
+            ]
+        },
+        "children": {
+            "data_processing": {
+                "self": [
+                    "dataProcessing"
+                ],
+                "attributes": {
+                    "id": [
+                        "id"
+                    ],
+                    "software_ref": [
+                        "softwareRef"
+                    ]
+                },
+                "children": {
+                    "processing_method": {
+                        "self": [
+                            "processingMethod"
+                        ],
+                        "attributes": {
+                            "order": [
+                                "order"
+                            ],
+                            "software_ref": [
+                                "softwareRef"
+                            ]
+                        },
+                        "children": {
+                            "referenceable_param_group_ref": {
+                                "self": [
+                                    "referenceableParamGroupRef"
+                                ],
+                                "attributes": {
+                                    "ref": [
+                                        "ref"
+                                    ]
+                                }
+                            },
+                            "cv_param": {
+                                "self": [
+                                    "cvParam"
+                                ],
+                                "attributes": {}
+                            },
+                            "user_param": {
+                                "self": [
+                                    "userParam"
+                                ],
+                                "attributes": {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "scan_settings_list": {
+        "self": [
+            "scanSettingsList",
+            "acquisitionSettingsList"
+        ],
+        "attributes": {
+            "count": [
+                "count"
+            ]
+        },
+        "children": {
+            "scan_settings": {
+                "self": [
+                    "scanSettings",
+                    "acquisitionSettings"
+                ],
+                "attributes": {
+                    "id": [
+                        "id"
+                    ],
+                    "instrument_configuration_ref": [
+                        "instrumentConfigurationRef"
+                    ]
+                },
+                "children": {
+                    "referenceable_param_group_ref": {
+                        "self": [
+                            "referenceableParamGroupRef"
+                        ],
+                        "attributes": {
+                            "ref": [
+                                "ref"
+                            ]
+                        }
+                    },
+                    "cv_param": {
+                        "self": [
+                            "cvParam"
+                        ],
+                        "attributes": {}
+                    },
+                    "user_param": {
+                        "self": [
+                            "userParam"
+                        ],
+                        "attributes": {}
+                    },
+                    "source_file_ref_list": {
+                        "self": [
+                            "sourceFileRefList"
+                        ],
+                        "attributes": {
+                            "count": [
+                                "count"
+                            ]
+                        },
+                        "children": {
+                            "source_file_ref": {
+                                "self": [
+                                    "sourceFileRef"
+                                ],
+                                "attributes": {
+                                    "ref": [
+                                        "ref"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "target_list": {
+                        "self": [
+                            "targetList"
+                        ],
+                        "attributes": {
+                            "count": [
+                                "count"
+                            ]
+                        },
+                        "children": {
+                            "target": {
+                                "self": [
+                                    "target"
+                                ],
+                                "attributes": {},
+                                "children": {
+                                    "referenceable_param_group_ref": {
+                                        "self": [
+                                            "referenceableParamGroupRef"
+                                        ],
+                                        "attributes": {
+                                            "ref": [
+                                                "ref"
+                                            ]
+                                        }
+                                    },
+                                    "cv_param": {
+                                        "self": [
+                                            "cvParam"
+                                        ],
+                                        "attributes": {}
+                                    },
+                                    "user_param": {
+                                        "self": [
+                                            "userParam"
+                                        ],
+                                        "attributes": {}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "run": {
+        "self": [
+            "run"
+        ],
+        "attributes": {
+            "id": [
+                "id"
+            ],
+            "start_time_stamp": [
+                "startTimeStamp"
+            ],
+            "default_instrument_configuration_ref": [
+                "defaultInstrumentConfigurationRef"
+            ],
+            "default_source_file_ref": [
+                "defaultSourceFileRef"
+            ],
+            "sample_ref": [
+                "sampleRef"
+            ]
+        },
+        "children": {
+            "referenceable_param_group_ref": {
+                "self": [
+                    "referenceableParamGroupRef"
+                ],
+                "attributes": {
+                    "ref": [
+                        "ref"
+                    ]
+                }
+            },
+            "cv_param": {
+                "self": [
+                    "cvParam"
+                ],
+                "attributes": {}
+            },
+            "user_param": {
+                "self": [
+                    "userParam"
+                ],
+                "attributes": {}
+            },
+            "source_file_ref_list": {
+                "self": [
+                    "sourceFileRefList"
+                ],
+                "attributes": {
+                    "count": [
+                        "count"
+                    ]
+                },
+                "children": {
+                    "source_file_ref": {
+                        "self": [
+                            "sourceFileRef"
+                        ],
+                        "attributes": {
+                            "ref": [
+                                "ref"
+                            ]
+                        }
+                    }
+                }
+            },
+            "spectrum_list": {
+                "self": [
+                    "spectrumList"
+                ],
+                "attributes": {
+                    "count": [
+                        "count"
+                    ],
+                    "default_data_processing_ref": [
+                        "defaultDataProcessingRef"
+                    ]
+                },
+                "children": {
+                    "spectrum": {
+                        "self": [
+                            "spectrum"
+                        ],
+                        "attributes": {
+                            "id": [
+                                "id"
+                            ],
+                            "index": [
+                                "index"
+                            ],
+                            "scan_number": [
+                                "scanNumber"
+                            ],
+                            "default_array_length": [
+                                "defaultArrayLength"
+                            ],
+                            "native_id": [
+                                "nativeID"
+                            ],
+                            "data_processing_ref": [
+                                "dataProcessingRef"
+                            ],
+                            "source_file_ref": [
+                                "sourceFileRef"
+                            ],
+                            "spot_id": [
+                                "spotID"
+                            ],
+                            "ms_level": [
+                                "msLevel"
+                            ]
+                        },
+                        "children": {
+                            "referenceable_param_group_ref": {
+                                "self": [
+                                    "referenceableParamGroupRef",
+                                    "paramGroupRef"
+                                ],
+                                "attributes": {
+                                    "ref": [
+                                        "ref"
+                                    ]
+                                }
+                            },
+                            "cv_param": {
+                                "self": [
+                                    "cvParam"
+                                ],
+                                "attributes": {}
+                            },
+                            "user_param": {
+                                "self": [
+                                    "userParam"
+                                ],
+                                "attributes": {}
+                            },
+                            "spectrum_description": {
+                                "self": [
+                                    "spectrumDescription"
+                                ],
+                                "attributes": {},
+                                "children": {
+                                    "referenceable_param_group_ref": {
+                                        "self": [
+                                            "referenceableParamGroupRef",
+                                            "paramGroupRef"
+                                        ],
+                                        "attributes": {
+                                            "ref": [
+                                                "ref"
+                                            ]
+                                        }
+                                    },
+                                    "cv_param": {
+                                        "self": [
+                                            "cvParam"
+                                        ],
+                                        "attributes": {}
+                                    },
+                                    "user_param": {
+                                        "self": [
+                                            "userParam"
+                                        ],
+                                        "attributes": {}
+                                    },
+                                    "scan_list": {
+                                        "self": [
+                                            "scanList"
+                                        ],
+                                        "attributes": {
+                                            "count": [
+                                                "count"
+                                            ]
+                                        },
+                                        "children": {
+                                            "scan": {
+                                                "self": [
+                                                    "scan"
+                                                ],
+                                                "attributes": {
+                                                    "instrument_configuration_ref": [
+                                                        "instrumentConfigurationRef",
+                                                        "instrumentRef"
+                                                    ],
+                                                    "external_spectrum_id": [
+                                                        "externalSpectrumID"
+                                                    ],
+                                                    "source_file_ref": [
+                                                        "sourceFileRef"
+                                                    ],
+                                                    "spectrum_ref": [
+                                                        "spectrumRef"
+                                                    ]
+                                                },
+                                                "children": {
+                                                    "referenceable_param_group_ref": {
+                                                        "self": [
+                                                            "referenceableParamGroupRef",
+                                                            "paramGroupRef"
+                                                        ],
+                                                        "attributes": {
+                                                            "ref": [
+                                                                "ref"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "cv_param": {
+                                                        "self": [
+                                                            "cvParam"
+                                                        ],
+                                                        "attributes": {}
+                                                    },
+                                                    "user_param": {
+                                                        "self": [
+                                                            "userParam"
+                                                        ],
+                                                        "attributes": {}
+                                                    },
+                                                    "scan_window_list": {
+                                                        "self": [
+                                                            "scanWindowList",
+                                                            "selectionWindowList"
+                                                        ],
+                                                        "attributes": {
+                                                            "count": [
+                                                                "count"
+                                                            ]
+                                                        },
+                                                        "children": {
+                                                            "scan_window": {
+                                                                "self": [
+                                                                    "scanWindow",
+                                                                    "selectionWindow"
+                                                                ],
+                                                                "attributes": {},
+                                                                "children": {
+                                                                    "cv_param": {
+                                                                        "self": [
+                                                                            "cvParam"
+                                                                        ],
+                                                                        "attributes": {}
+                                                                    },
+                                                                    "user_param": {
+                                                                        "self": [
+                                                                            "userParam"
+                                                                        ],
+                                                                        "attributes": {}
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "precursor_list": {
+                                        "self": [
+                                            "precursorList"
+                                        ],
+                                        "attributes": {
+                                            "count": [
+                                                "count"
+                                            ]
+                                        },
+                                        "children": {
+                                            "precursor": {
+                                                "self": [
+                                                    "precursor"
+                                                ],
+                                                "attributes": {
+                                                    "spectrum_ref": [
+                                                        "spectrumRef"
+                                                    ],
+                                                    "source_file_ref": [
+                                                        "sourceFileRef"
+                                                    ],
+                                                    "external_spectrum_id": [
+                                                        "externalSpectrumID"
+                                                    ]
+                                                },
+                                                "children": {
+                                                    "isolation_window": {
+                                                        "self": [
+                                                            "isolationWindow"
+                                                        ],
+                                                        "attributes": {},
+                                                        "children": {
+                                                            "referenceable_param_group_ref": {
+                                                                "self": [
+                                                                    "referenceableParamGroupRef",
+                                                                    "paramGroupRef"
+                                                                ],
+                                                                "attributes": {
+                                                                    "ref": [
+                                                                        "ref"
+                                                                    ]
+                                                                }
+                                                            },
+                                                            "cv_param": {
+                                                                "self": [
+                                                                    "cvParam"
+                                                                ],
+                                                                "attributes": {}
+                                                            },
+                                                            "user_param": {
+                                                                "self": [
+                                                                    "userParam"
+                                                                ],
+                                                                "attributes": {}
+                                                            }
+                                                        }
+                                                    },
+                                                    "selected_ion_list": {
+                                                        "self": [
+                                                            "selectedIonList"
+                                                        ],
+                                                        "attributes": {
+                                                            "count": [
+                                                                "count"
+                                                            ]
+                                                        },
+                                                        "children": {
+                                                            "selected_ion": {
+                                                                "self": [
+                                                                    "selectedIon"
+                                                                ],
+                                                                "attributes": {},
+                                                                "children": {
+                                                                    "referenceable_param_group_ref": {
+                                                                        "self": [
+                                                                            "referenceableParamGroupRef",
+                                                                            "paramGroupRef"
+                                                                        ],
+                                                                        "attributes": {
+                                                                            "ref": [
+                                                                                "ref"
+                                                                            ]
+                                                                        }
+                                                                    },
+                                                                    "cv_param": {
+                                                                        "self": [
+                                                                            "cvParam"
+                                                                        ],
+                                                                        "attributes": {}
+                                                                    },
+                                                                    "user_param": {
+                                                                        "self": [
+                                                                            "userParam"
+                                                                        ],
+                                                                        "attributes": {}
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    },
+                                                    "activation": {
+                                                        "self": [
+                                                            "activation"
+                                                        ],
+                                                        "attributes": {},
+                                                        "children": {
+                                                            "referenceable_param_group_ref": {
+                                                                "self": [
+                                                                    "referenceableParamGroupRef",
+                                                                    "paramGroupRef"
+                                                                ],
+                                                                "attributes": {
+                                                                    "ref": [
+                                                                        "ref"
+                                                                    ]
+                                                                }
+                                                            },
+                                                            "cv_param": {
+                                                                "self": [
+                                                                    "cvParam"
+                                                                ],
+                                                                "attributes": {}
+                                                            },
+                                                            "user_param": {
+                                                                "self": [
+                                                                    "userParam"
+                                                                ],
+                                                                "attributes": {}
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "product_list": {
+                                        "self": [
+                                            "productList"
+                                        ],
+                                        "attributes": {
+                                            "count": [
+                                                "count"
+                                            ]
+                                        },
+                                        "children": {
+                                            "product": {
+                                                "self": [
+                                                    "product"
+                                                ],
+                                                "attributes": {
+                                                    "spectrum_ref": [
+                                                        "spectrumRef"
+                                                    ],
+                                                    "source_file_ref": [
+                                                        "sourceFileRef"
+                                                    ],
+                                                    "external_spectrum_id": [
+                                                        "externalSpectrumID"
+                                                    ]
+                                                },
+                                                "children": {
+                                                    "isolation_window": {
+                                                        "self": [
+                                                            "isolationWindow"
+                                                        ],
+                                                        "attributes": {},
+                                                        "children": {
+                                                            "referenceable_param_group_ref": {
+                                                                "self": [
+                                                                    "referenceableParamGroupRef",
+                                                                    "paramGroupRef"
+                                                                ],
+                                                                "attributes": {
+                                                                    "ref": [
+                                                                        "ref"
+                                                                    ]
+                                                                }
+                                                            },
+                                                            "cv_param": {
+                                                                "self": [
+                                                                    "cvParam"
+                                                                ],
+                                                                "attributes": {}
+                                                            },
+                                                            "user_param": {
+                                                                "self": [
+                                                                    "userParam"
+                                                                ],
+                                                                "attributes": {}
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "scan_list": {
+                                "self": [
+                                    "scanList"
+                                ],
+                                "attributes": {
+                                    "count": [
+                                        "count"
+                                    ]
+                                },
+                                "children": {
+                                    "scan": {
+                                        "self": [
+                                            "scan"
+                                        ],
+                                        "attributes": {
+                                            "instrument_configuration_ref": [
+                                                "instrumentConfigurationRef",
+                                                "instrumentRef"
+                                            ],
+                                            "external_spectrum_id": [
+                                                "externalSpectrumID"
+                                            ],
+                                            "source_file_ref": [
+                                                "sourceFileRef"
+                                            ],
+                                            "spectrum_ref": [
+                                                "spectrumRef"
+                                            ]
+                                        },
+                                        "children": {
+                                            "referenceable_param_group_ref": {
+                                                "self": [
+                                                    "referenceableParamGroupRef",
+                                                    "paramGroupRef"
+                                                ],
+                                                "attributes": {
+                                                    "ref": [
+                                                        "ref"
+                                                    ]
+                                                }
+                                            },
+                                            "cv_param": {
+                                                "self": [
+                                                    "cvParam"
+                                                ],
+                                                "attributes": {}
+                                            },
+                                            "user_param": {
+                                                "self": [
+                                                    "userParam"
+                                                ],
+                                                "attributes": {}
+                                            },
+                                            "scan_window_list": {
+                                                "self": [
+                                                    "scanWindowList",
+                                                    "selectionWindowList"
+                                                ],
+                                                "attributes": {
+                                                    "count": [
+                                                        "count"
+                                                    ]
+                                                },
+                                                "children": {
+                                                    "scan_window": {
+                                                        "self": [
+                                                            "scanWindow",
+                                                            "selectionWindow"
+                                                        ],
+                                                        "attributes": {},
+                                                        "children": {
+                                                            "cv_param": {
+                                                                "self": [
+                                                                    "cvParam"
+                                                                ],
+                                                                "attributes": {}
+                                                            },
+                                                            "user_param": {
+                                                                "self": [
+                                                                    "userParam"
+                                                                ],
+                                                                "attributes": {}
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "precursor_list": {
+                                "self": [
+                                    "precursorList"
+                                ],
+                                "attributes": {
+                                    "count": [
+                                        "count"
+                                    ]
+                                },
+                                "children": {
+                                    "precursor": {
+                                        "self": [
+                                            "precursor"
+                                        ],
+                                        "attributes": {
+                                            "spectrum_ref": [
+                                                "spectrumRef"
+                                            ],
+                                            "source_file_ref": [
+                                                "sourceFileRef"
+                                            ],
+                                            "external_spectrum_id": [
+                                                "externalSpectrumID"
+                                            ]
+                                        },
+                                        "children": {
+                                            "isolation_window": {
+                                                "self": [
+                                                    "isolationWindow"
+                                                ],
+                                                "attributes": {},
+                                                "children": {
+                                                    "referenceable_param_group_ref": {
+                                                        "self": [
+                                                            "referenceableParamGroupRef",
+                                                            "paramGroupRef"
+                                                        ],
+                                                        "attributes": {
+                                                            "ref": [
+                                                                "ref"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "cv_param": {
+                                                        "self": [
+                                                            "cvParam"
+                                                        ],
+                                                        "attributes": {}
+                                                    },
+                                                    "user_param": {
+                                                        "self": [
+                                                            "userParam"
+                                                        ],
+                                                        "attributes": {}
+                                                    }
+                                                }
+                                            },
+                                            "selected_ion_list": {
+                                                "self": [
+                                                    "selectedIonList"
+                                                ],
+                                                "attributes": {
+                                                    "count": [
+                                                        "count"
+                                                    ]
+                                                },
+                                                "children": {
+                                                    "selected_ion": {
+                                                        "self": [
+                                                            "selectedIon"
+                                                        ],
+                                                        "attributes": {},
+                                                        "children": {
+                                                            "referenceable_param_group_ref": {
+                                                                "self": [
+                                                                    "referenceableParamGroupRef",
+                                                                    "paramGroupRef"
+                                                                ],
+                                                                "attributes": {
+                                                                    "ref": [
+                                                                        "ref"
+                                                                    ]
+                                                                }
+                                                            },
+                                                            "cv_param": {
+                                                                "self": [
+                                                                    "cvParam"
+                                                                ],
+                                                                "attributes": {}
+                                                            },
+                                                            "user_param": {
+                                                                "self": [
+                                                                    "userParam"
+                                                                ],
+                                                                "attributes": {}
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            "activation": {
+                                                "self": [
+                                                    "activation"
+                                                ],
+                                                "attributes": {},
+                                                "children": {
+                                                    "referenceable_param_group_ref": {
+                                                        "self": [
+                                                            "referenceableParamGroupRef",
+                                                            "paramGroupRef"
+                                                        ],
+                                                        "attributes": {
+                                                            "ref": [
+                                                                "ref"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "cv_param": {
+                                                        "self": [
+                                                            "cvParam"
+                                                        ],
+                                                        "attributes": {}
+                                                    },
+                                                    "user_param": {
+                                                        "self": [
+                                                            "userParam"
+                                                        ],
+                                                        "attributes": {}
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "product_list": {
+                                "self": [
+                                    "productList"
+                                ],
+                                "attributes": {
+                                    "count": [
+                                        "count"
+                                    ]
+                                },
+                                "children": {
+                                    "product": {
+                                        "self": [
+                                            "product"
+                                        ],
+                                        "attributes": {
+                                            "spectrum_ref": [
+                                                "spectrumRef"
+                                            ],
+                                            "source_file_ref": [
+                                                "sourceFileRef"
+                                            ],
+                                            "external_spectrum_id": [
+                                                "externalSpectrumID"
+                                            ]
+                                        },
+                                        "children": {
+                                            "isolation_window": {
+                                                "self": [
+                                                    "isolationWindow"
+                                                ],
+                                                "attributes": {},
+                                                "children": {
+                                                    "referenceable_param_group_ref": {
+                                                        "self": [
+                                                            "referenceableParamGroupRef",
+                                                            "paramGroupRef"
+                                                        ],
+                                                        "attributes": {
+                                                            "ref": [
+                                                                "ref"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "cv_param": {
+                                                        "self": [
+                                                            "cvParam"
+                                                        ],
+                                                        "attributes": {}
+                                                    },
+                                                    "user_param": {
+                                                        "self": [
+                                                            "userParam"
+                                                        ],
+                                                        "attributes": {}
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "binary_data_array_list": {
+                                "self": [
+                                    "binaryDataArrayList"
+                                ],
+                                "attributes": {
+                                    "count": [
+                                        "count"
+                                    ]
+                                },
+                                "children": {
+                                    "binary_data_array": {
+                                        "self": [
+                                            "binaryDataArray"
+                                        ],
+                                        "attributes": {
+                                            "array_length": [
+                                                "arrayLength"
+                                            ],
+                                            "encoded_length": [
+                                                "encodedLength"
+                                            ],
+                                            "data_processing_ref": [
+                                                "dataProcessingRef"
+                                            ]
+                                        },
+                                        "children": {
+                                            "referenceable_param_group_ref": {
+                                                "self": [
+                                                    "referenceableParamGroupRef",
+                                                    "paramGroupRef"
+                                                ],
+                                                "attributes": {
+                                                    "ref": [
+                                                        "ref"
+                                                    ]
+                                                }
+                                            },
+                                            "cv_param": {
+                                                "self": [
+                                                    "cvParam"
+                                                ],
+                                                "attributes": {}
+                                            },
+                                            "user_param": {
+                                                "self": [
+                                                    "userParam"
+                                                ],
+                                                "attributes": {}
+                                            },
+                                            "binary": {
+                                                "self": [
+                                                    "binary"
+                                                ],
+                                                "attributes": {}
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "chromatogram_list": {
+                "self": [
+                    "chromatogramList"
+                ],
+                "attributes": {
+                    "count": [
+                        "count"
+                    ],
+                    "default_data_processing_ref": [
+                        "defaultDataProcessingRef"
+                    ]
+                },
+                "children": {
+                    "chromatogram": {
+                        "self": [
+                            "chromatogram"
+                        ],
+                        "attributes": {
+                            "id": [
+                                "id"
+                            ],
+                            "native_id": [
+                                "nativeID"
+                            ],
+                            "index": [
+                                "index"
+                            ],
+                            "default_array_length": [
+                                "defaultArrayLength"
+                            ],
+                            "data_processing_ref": [
+                                "dataProcessingRef"
+                            ]
+                        },
+                        "children": {
+                            "referenceable_param_group_ref": {
+                                "self": [
+                                    "referenceableParamGroupRef"
+                                ],
+                                "attributes": {
+                                    "ref": [
+                                        "ref"
+                                    ]
+                                }
+                            },
+                            "cv_param": {
+                                "self": [
+                                    "cvParam"
+                                ],
+                                "attributes": {}
+                            },
+                            "user_param": {
+                                "self": [
+                                    "userParam"
+                                ],
+                                "attributes": {}
+                            },
+                            "precursor": {
+                                "self": [
+                                    "precursor"
+                                ],
+                                "attributes": {
+                                    "spectrum_ref": [
+                                        "spectrumRef"
+                                    ],
+                                    "source_file_ref": [
+                                        "sourceFileRef"
+                                    ],
+                                    "external_spectrum_id": [
+                                        "externalSpectrumID"
+                                    ]
+                                },
+                                "children": {
+                                    "isolation_window": {
+                                        "self": [
+                                            "isolationWindow"
+                                        ],
+                                        "attributes": {},
+                                        "children": {
+                                            "referenceable_param_group_ref": {
+                                                "self": [
+                                                    "referenceableParamGroupRef",
+                                                    "paramGroupRef"
+                                                ],
+                                                "attributes": {
+                                                    "ref": [
+                                                        "ref"
+                                                    ]
+                                                }
+                                            },
+                                            "cv_param": {
+                                                "self": [
+                                                    "cvParam"
+                                                ],
+                                                "attributes": {}
+                                            },
+                                            "user_param": {
+                                                "self": [
+                                                    "userParam"
+                                                ],
+                                                "attributes": {}
+                                            }
+                                        }
+                                    },
+                                    "selected_ion_list": {
+                                        "self": [
+                                            "selectedIonList"
+                                        ],
+                                        "attributes": {
+                                            "count": [
+                                                "count"
+                                            ]
+                                        },
+                                        "children": {
+                                            "selected_ion": {
+                                                "self": [
+                                                    "selectedIon"
+                                                ],
+                                                "attributes": {},
+                                                "children": {
+                                                    "referenceable_param_group_ref": {
+                                                        "self": [
+                                                            "referenceableParamGroupRef",
+                                                            "paramGroupRef"
+                                                        ],
+                                                        "attributes": {
+                                                            "ref": [
+                                                                "ref"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "cv_param": {
+                                                        "self": [
+                                                            "cvParam"
+                                                        ],
+                                                        "attributes": {}
+                                                    },
+                                                    "user_param": {
+                                                        "self": [
+                                                            "userParam"
+                                                        ],
+                                                        "attributes": {}
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "activation": {
+                                        "self": [
+                                            "activation"
+                                        ],
+                                        "attributes": {},
+                                        "children": {
+                                            "referenceable_param_group_ref": {
+                                                "self": [
+                                                    "referenceableParamGroupRef",
+                                                    "paramGroupRef"
+                                                ],
+                                                "attributes": {
+                                                    "ref": [
+                                                        "ref"
+                                                    ]
+                                                }
+                                            },
+                                            "cv_param": {
+                                                "self": [
+                                                    "cvParam"
+                                                ],
+                                                "attributes": {}
+                                            },
+                                            "user_param": {
+                                                "self": [
+                                                    "userParam"
+                                                ],
+                                                "attributes": {}
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "product": {
+                                "self": [
+                                    "product"
+                                ],
+                                "attributes": {
+                                    "spectrum_ref": [
+                                        "spectrumRef"
+                                    ],
+                                    "source_file_ref": [
+                                        "sourceFileRef"
+                                    ],
+                                    "external_spectrum_id": [
+                                        "externalSpectrumID"
+                                    ]
+                                },
+                                "children": {
+                                    "isolation_window": {
+                                        "self": [
+                                            "isolationWindow"
+                                        ],
+                                        "attributes": {},
+                                        "children": {
+                                            "referenceable_param_group_ref": {
+                                                "self": [
+                                                    "referenceableParamGroupRef",
+                                                    "paramGroupRef"
+                                                ],
+                                                "attributes": {
+                                                    "ref": [
+                                                        "ref"
+                                                    ]
+                                                }
+                                            },
+                                            "cv_param": {
+                                                "self": [
+                                                    "cvParam"
+                                                ],
+                                                "attributes": {}
+                                            },
+                                            "user_param": {
+                                                "self": [
+                                                    "userParam"
+                                                ],
+                                                "attributes": {}
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            "binary_data_array_list": {
+                                "self": [
+                                    "binaryDataArrayList"
+                                ],
+                                "attributes": {
+                                    "count": [
+                                        "count"
+                                    ]
+                                },
+                                "children": {
+                                    "binary_data_array": {
+                                        "self": [
+                                            "binaryDataArray"
+                                        ],
+                                        "attributes": {
+                                            "encoded_length": [
+                                                "encodedLength"
+                                            ],
+                                            "array_length": [
+                                                "arrayLength"
+                                            ],
+                                            "data_processing_ref": [
+                                                "dataProcessingRef"
+                                            ]
+                                        },
+                                        "children": {
+                                            "referenceable_param_group_ref": {
+                                                "self": [
+                                                    "referenceableParamGroupRef",
+                                                    "paramGroupRef"
+                                                ],
+                                                "attributes": {
+                                                    "ref": [
+                                                        "ref"
+                                                    ]
+                                                }
+                                            },
+                                            "cv_param": {
+                                                "self": [
+                                                    "cvParam"
+                                                ],
+                                                "attributes": {}
+                                            },
+                                            "user_param": {
+                                                "self": [
+                                                    "userParam"
+                                                ],
+                                                "attributes": {}
+                                            },
+                                            "binary": {
+                                                "self": [
+                                                    "binary"
+                                                ],
+                                                "attributes": {}
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
