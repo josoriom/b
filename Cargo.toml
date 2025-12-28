@@ -1,6 +1,6 @@
-[package]
-name = "b"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+members = ["crates/parser", "crates/cli"]
+resolver = "3"
 
-[dependencies]
+[workspace.dependencies]
+clap = "4.5.53"
