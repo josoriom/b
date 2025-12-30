@@ -8,3 +8,5 @@ pub mod decode;
 pub use decode::decode;
 pub mod mzml;
 pub use mzml::*;
+pub mod bin_to_mzml;
+pub use bin_to_mzml::bin_to_mzml;
