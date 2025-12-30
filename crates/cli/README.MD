@@ -14,28 +14,28 @@ mkdir -p "$INSTALL_DIR"
 ### macOS — arm64
 
 ```bash
-curl -fL "https://github.com/josoriom/b/tree/main/crates/cli/artifacts/macos-arm64" -o "$INSTALL_DIR/b"
+curl -fL "https://raw.githubusercontent.com/josoriom/b/main/crates/cli/artifacts/macos-arm64" -o "$INSTALL_DIR/b"
 chmod +x "$INSTALL_DIR/b"
 ```
 
 ### macOS — x86_64
 
 ```bash
-curl -fL "https://github.com/josoriom/b/tree/main/crates/cli/artifacts/macos-x86_64" -o "$INSTALL_DIR/b"
+curl -fL "https://raw.githubusercontent.com/josoriom/b/main/crates/cli/artifacts/macos-x86_64" -o "$INSTALL_DIR/b"
 chmod +x "$INSTALL_DIR/b"
 ```
 
 ### Linux — x86_64
 
 ```bash
-curl -fL "https://github.com/josoriom/b/tree/main/crates/cli/artifacts/linux-x86_64" -o "$INSTALL_DIR/b"
+curl -fL "https://raw.githubusercontent.com/josoriom/b/main/crates/cli/artifacts/linux-x86_64" -o "$INSTALL_DIR/b"
 chmod +x "$INSTALL_DIR/b"
 ```
 
 ### Linux — arm64
 
 ```bash
-curl -fL "https://github.com/josoriom/b/tree/main/crates/cli/artifacts/linux-arm64" -o "$INSTALL_DIR/b"
+curl -fL "https://raw.githubusercontent.com/josoriom/b/main/crates/cli/artifacts/linux-arm64" -o "$INSTALL_DIR/b"
 chmod +x "$INSTALL_DIR/b"
 ```
 
