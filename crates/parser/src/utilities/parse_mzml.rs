@@ -52,6 +52,20 @@ fn get_attr_usize(start: &BytesStart, name: &[u8]) -> Option<usize> {
     get_attr(start, name).and_then(|s| s.parse().ok())
 }
 
+#[inline]
+fn local_name(mut raw: &[u8]) -> &[u8] {
+    if raw.first() == Some(&b'{') {
+        if let Some(end) = raw.iter().position(|&b| b == b'}') {
+            raw = &raw[end + 1..];
+        }
+    }
+    if let Some(colon) = raw.iter().rposition(|&b| b == b':') {
+        &raw[colon + 1..]
+    } else {
+        raw
+    }
+}
+
 fn parse_referenceable_param_group_ref(start: &BytesStart) -> ReferenceableParamGroupRef {
     ReferenceableParamGroupRef {
         r#ref: get_attr(start, b"ref").unwrap_or_default(),
@@ -98,9 +112,9 @@ fn parse_source_file_ref(start: &BytesStart) -> SourceFileRef {
 
 fn skip_element<R: BufRead>(reader: &mut Reader<R>, end: &[u8]) -> Result<(), String> {
     let mut depth = 1usize;
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
 
-    loop {
+    while depth != 0 {
         match reader
             .read_event_into(&mut buf)
             .map_err(|e| e.to_string())?
@@ -111,21 +125,17 @@ fn skip_element<R: BufRead>(reader: &mut Reader<R>, end: &[u8]) -> Result<(), St
                     break;
                 }
                 depth = depth.saturating_sub(1);
-                if depth == 0 {
-                    break;
-                }
             }
             Event::Eof => break,
             _ => {}
         }
         buf.clear();
     }
-
     Ok(())
 }
 
 fn read_text_content<R: BufRead>(reader: &mut Reader<R>, end: &[u8]) -> Result<String, String> {
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     let mut out = String::new();
 
     loop {
@@ -133,10 +143,7 @@ fn read_text_content<R: BufRead>(reader: &mut Reader<R>, end: &[u8]) -> Result<S
             .read_event_into(&mut buf)
             .map_err(|e| e.to_string())?
         {
-            Event::Text(t) => {
-                let txt = t.decode().map_err(|e| e.to_string())?;
-                out.push_str(&txt);
-            }
+            Event::Text(t) => out.push_str(&t.decode().map_err(|e| e.to_string())?),
             Event::CData(t) => out.push_str(&String::from_utf8_lossy(&t.into_inner())),
             Event::End(e) if e.name().as_ref() == end => break,
             Event::Eof => break,
@@ -144,7 +151,6 @@ fn read_text_content<R: BufRead>(reader: &mut Reader<R>, end: &[u8]) -> Result<S
         }
         buf.clear();
     }
-
     Ok(out)
 }
 
@@ -212,7 +218,7 @@ pub fn parse_mzml(bytes: &[u8], slim: bool) -> Result<MzML, String> {
     let mut reader = Reader::from_reader(Cursor::new(bytes));
     reader.config_mut().trim_text(true);
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(1024);
     let mut mzml = MzML::default();
     let mut in_mzml = false;
 
@@ -221,73 +227,86 @@ pub fn parse_mzml(bytes: &[u8], slim: bool) -> Result<MzML, String> {
             .read_event_into(&mut buf)
             .map_err(|e| e.to_string())?
         {
-            Event::Start(e) => match e.name().as_ref() {
-                b"mzML" => in_mzml = true,
-                b"cvList" => mzml.cv_list = Some(parse_cv_list(&mut reader, &e)?),
-                b"fileDescription" if in_mzml => {
-                    mzml.file_description = parse_file_description(&mut reader, &e)?
+            Event::Start(e) => {
+                if e.name().as_ref() == b"mzML" {
+                    in_mzml = true;
+                    buf.clear();
+                    continue;
                 }
-                b"referenceableParamGroupList" if in_mzml => {
-                    mzml.referenceable_param_group_list =
-                        Some(parse_referenceable_param_group_list(&mut reader, &e)?);
+                if !in_mzml {
+                    buf.clear();
+                    continue;
                 }
-                b"sampleList" if in_mzml => {
-                    mzml.sample_list = Some(parse_sample_list(&mut reader, &e)?)
+                match e.name().as_ref() {
+                    b"cvList" => mzml.cv_list = Some(parse_cv_list(&mut reader, &e)?),
+                    b"fileDescription" => {
+                        mzml.file_description = parse_file_description(&mut reader, &e)?
+                    }
+                    b"referenceableParamGroupList" => {
+                        mzml.referenceable_param_group_list =
+                            Some(parse_referenceable_param_group_list(&mut reader, &e)?);
+                    }
+                    b"sampleList" => mzml.sample_list = Some(parse_sample_list(&mut reader, &e)?),
+                    b"instrumentList" | b"instrumentConfigurationList" => {
+                        mzml.instrument_list = parse_instrument_list(&mut reader, &e)?;
+                    }
+                    b"softwareList" => {
+                        mzml.software_list = Some(parse_software_list(&mut reader, &e)?)
+                    }
+                    b"dataProcessingList" => {
+                        mzml.data_processing_list =
+                            Some(parse_data_processing_list(&mut reader, &e)?);
+                    }
+                    b"scanSettingsList" | b"acquisitionSettingsList" => {
+                        mzml.scan_settings_list = parse_scan_settings_list(&mut reader, &e)?;
+                    }
+                    b"run" => mzml.run = parse_run(&mut reader, &e, slim)?,
+                    _ => skip_element(&mut reader, e.name().as_ref())?,
                 }
-                b"instrumentList" | b"instrumentConfigurationList" if in_mzml => {
-                    mzml.instrument_list = parse_instrument_list(&mut reader, &e)?;
+            }
+            Event::Empty(e) => {
+                if !in_mzml {
+                    buf.clear();
+                    continue;
                 }
-                b"softwareList" if in_mzml => {
-                    mzml.software_list = Some(parse_software_list(&mut reader, &e)?)
+                match e.name().as_ref() {
+                    b"referenceableParamGroupList" => {
+                        let mut list = ReferenceableParamGroupList::default();
+                        list.count = get_attr_usize(&e, b"count");
+                        mzml.referenceable_param_group_list = Some(list);
+                    }
+                    b"sampleList" => {
+                        let mut list = SampleList::default();
+                        list.count = get_attr_u32(&e, b"count");
+                        mzml.sample_list = Some(list);
+                    }
+                    b"instrumentList" | b"instrumentConfigurationList" => {
+                        let mut list = InstrumentList::default();
+                        list.count = get_attr_usize(&e, b"count");
+                        mzml.instrument_list = Some(list);
+                    }
+                    b"softwareList" => {
+                        let mut list = SoftwareList::default();
+                        list.count = get_attr_usize(&e, b"count");
+                        mzml.software_list = Some(list);
+                    }
+                    b"dataProcessingList" => {
+                        let mut list = DataProcessingList::default();
+                        list.count = get_attr_usize(&e, b"count");
+                        mzml.data_processing_list = Some(list);
+                    }
+                    b"scanSettingsList" | b"acquisitionSettingsList" => {
+                        let mut list = ScanSettingsList::default();
+                        list.count = get_attr_usize(&e, b"count");
+                        mzml.scan_settings_list = Some(list);
+                    }
+                    _ => {}
                 }
-                b"dataProcessingList" if in_mzml => {
-                    mzml.data_processing_list = Some(parse_data_processing_list(&mut reader, &e)?);
-                }
-                b"scanSettingsList" | b"acquisitionSettingsList" if in_mzml => {
-                    mzml.scan_settings_list = parse_scan_settings_list(&mut reader, &e)?;
-                }
-                b"run" if in_mzml => mzml.run = parse_run(&mut reader, &e, slim)?,
-                _ if in_mzml => skip_element(&mut reader, e.name().as_ref())?,
-                _ => {}
-            },
-            Event::Empty(e) => match e.name().as_ref() {
-                b"referenceableParamGroupList" if in_mzml => {
-                    let mut list = ReferenceableParamGroupList::default();
-                    list.count = get_attr_usize(&e, b"count");
-                    mzml.referenceable_param_group_list = Some(list);
-                }
-                b"sampleList" if in_mzml => {
-                    let mut list = SampleList::default();
-                    list.count = get_attr_u32(&e, b"count");
-                    mzml.sample_list = Some(list);
-                }
-                b"instrumentList" | b"instrumentConfigurationList" if in_mzml => {
-                    let mut list = InstrumentList::default();
-                    list.count = get_attr_usize(&e, b"count");
-                    mzml.instrument_list = Some(list);
-                }
-                b"softwareList" if in_mzml => {
-                    let mut list = SoftwareList::default();
-                    list.count = get_attr_usize(&e, b"count");
-                    mzml.software_list = Some(list);
-                }
-                b"dataProcessingList" if in_mzml => {
-                    let mut list = DataProcessingList::default();
-                    list.count = get_attr_usize(&e, b"count");
-                    mzml.data_processing_list = Some(list);
-                }
-                b"scanSettingsList" | b"acquisitionSettingsList" if in_mzml => {
-                    let mut list = ScanSettingsList::default();
-                    list.count = get_attr_usize(&e, b"count");
-                    mzml.scan_settings_list = Some(list);
-                }
-                _ => {}
-            },
+            }
             Event::End(e) if e.name().as_ref() == b"mzML" => break,
             Event::Eof => break,
             _ => {}
         }
-
         buf.clear();
     }
 
@@ -302,7 +321,7 @@ pub fn parse_cv_list<R: BufRead>(
     let mut list = CvList::default();
     list.count = get_attr_usize(start, b"count");
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -323,7 +342,6 @@ pub fn parse_cv_list<R: BufRead>(
         }
         buf.clear();
     }
-
     Ok(list)
 }
 
@@ -344,7 +362,7 @@ fn parse_file_description<R: BufRead>(
     let mut file_content = FileContent::default();
     let mut source_file_list = SourceFileList::default();
     let mut contacts = Vec::new();
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
 
     loop {
         match reader
@@ -378,7 +396,7 @@ fn parse_file_content<R: BufRead>(
     _start: &BytesStart,
 ) -> Result<FileContent, String> {
     let mut fc = FileContent::default();
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
 
     loop {
         match reader
@@ -422,7 +440,7 @@ fn parse_source_file_list<R: BufRead>(
     let mut list = SourceFileList::default();
     list.count = get_attr_usize(start, b"count");
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -466,7 +484,7 @@ fn parse_source_file<R: BufRead>(
         ..Default::default()
     };
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -507,7 +525,7 @@ fn parse_contact<R: BufRead>(
     _start: &BytesStart,
 ) -> Result<Contact, String> {
     let mut c = Contact::default();
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
 
     loop {
         match reader
@@ -551,7 +569,7 @@ fn parse_referenceable_param_group_list<R: BufRead>(
     let mut list = ReferenceableParamGroupList::default();
     list.count = get_attr_usize(start, b"count");
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -592,7 +610,7 @@ fn parse_referenceable_param_group<R: BufRead>(
         ..Default::default()
     };
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -632,7 +650,7 @@ fn parse_sample_list<R: BufRead>(
     let mut list = SampleList::default();
     list.count = get_attr_u32(start, b"count");
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -658,7 +676,6 @@ fn parse_sample_list<R: BufRead>(
         }
         buf.clear();
     }
-
     Ok(list)
 }
 
@@ -670,7 +687,7 @@ fn parse_sample<R: BufRead>(reader: &mut Reader<R>, start: &BytesStart) -> Resul
         ..Default::default()
     };
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -723,8 +740,8 @@ fn parse_instrument_list<R: BufRead>(
     let mut list = InstrumentList::default();
     list.count = get_attr_usize(start, b"count");
     let end_tag = start.name();
-    let mut buf = Vec::new();
 
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -749,11 +766,11 @@ fn parse_instrument_list<R: BufRead>(
         buf.clear();
     }
 
-    if list.instrument.is_empty() && list.count.is_none() {
-        Ok(None)
+    Ok(if list.instrument.is_empty() && list.count.is_none() {
+        None
     } else {
-        Ok(Some(list))
-    }
+        Some(list)
+    })
 }
 
 /// <instrument> / <instrumentConfiguration>
@@ -777,9 +794,8 @@ fn parse_instrument<R: BufRead>(
         return Ok(instrument);
     }
 
-    let mut buf = Vec::new();
     let end_tag = start.name();
-
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -810,11 +826,10 @@ fn parse_instrument<R: BufRead>(
                     &mut instrument.cv_param,
                     &mut instrument.user_param,
                 )? {
-                    match e.name().as_ref() {
-                        b"componentList" => {
-                            instrument.component_list = Some(parse_component_list(reader, &e)?)
-                        }
-                        _ => skip_element(reader, e.name().as_ref())?,
+                    if e.name().as_ref() == b"componentList" {
+                        instrument.component_list = Some(parse_component_list(reader, &e)?);
+                    } else {
+                        skip_element(reader, e.name().as_ref())?;
                     }
                 }
             }
@@ -836,7 +851,7 @@ fn parse_component_list<R: BufRead>(
     let mut list = ComponentList::default();
     list.count = get_attr_usize(start, b"count");
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -916,8 +931,8 @@ fn parse_component<R: BufRead>(
         user_param: Vec::new(),
     };
 
-    let mut buf = Vec::new();
     let end_tag = start.name();
+    let mut buf = Vec::with_capacity(512);
 
     loop {
         match reader
@@ -962,7 +977,7 @@ fn parse_scan_settings_list<R: BufRead>(
     list.count = get_attr_usize(start, b"count");
     let end_tag = start.name();
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -989,11 +1004,11 @@ fn parse_scan_settings_list<R: BufRead>(
         buf.clear();
     }
 
-    if list.scan_settings.is_empty() && list.count.is_none() {
-        Ok(None)
+    Ok(if list.scan_settings.is_empty() && list.count.is_none() {
+        None
     } else {
-        Ok(Some(list))
-    }
+        Some(list)
+    })
 }
 
 /// <scanSettings>
@@ -1008,7 +1023,7 @@ fn parse_scan_settings<R: BufRead>(
     };
 
     let end_tag = start.name();
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
 
     loop {
         match reader
@@ -1058,7 +1073,7 @@ fn parse_source_file_ref_list<R: BufRead>(
     let mut list = SourceFileRefList::default();
     list.count = get_attr_usize(start, b"count");
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -1093,7 +1108,7 @@ fn parse_target_list<R: BufRead>(
     let mut list = TargetList::default();
     list.count = get_attr_usize(start, b"count");
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -1122,7 +1137,7 @@ fn parse_target_list<R: BufRead>(
 /// <target>
 fn parse_target<R: BufRead>(reader: &mut Reader<R>, _start: &BytesStart) -> Result<Target, String> {
     let mut target = Target::default();
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
 
     loop {
         match reader
@@ -1166,7 +1181,7 @@ fn parse_software_list<R: BufRead>(
     let mut list = SoftwareList::default();
     list.count = get_attr_usize(start, b"count");
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -1205,29 +1220,29 @@ fn parse_software<R: BufRead>(
         ..Default::default()
     };
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
             .map_err(|e| e.to_string())?
         {
-            Event::Empty(e) => match e.name().as_ref() {
+            Event::Empty(e) => match local_name(e.name().as_ref()) {
                 b"softwareParam" => s.software_param.push(parse_software_param(&e)),
                 b"cvParam" => s.cv_param.push(parse_cv_param(&e)),
                 _ => {}
             },
-            Event::Start(e) => match e.name().as_ref() {
+            Event::Start(e) => match local_name(e.name().as_ref()) {
                 b"softwareParam" => {
                     s.software_param.push(parse_software_param(&e));
-                    skip_element(reader, b"softwareParam")?;
+                    skip_element(reader, e.name().as_ref())?;
                 }
                 b"cvParam" => {
                     s.cv_param.push(parse_cv_param(&e));
-                    skip_element(reader, b"cvParam")?;
+                    skip_element(reader, e.name().as_ref())?;
                 }
                 _ => skip_element(reader, e.name().as_ref())?,
             },
-            Event::End(e) if e.name().as_ref() == b"software" => break,
+            Event::End(e) if local_name(e.name().as_ref()) == b"software" => break,
             Event::Eof => break,
             _ => {}
         }
@@ -1245,7 +1260,7 @@ fn parse_data_processing_list<R: BufRead>(
     let mut list = DataProcessingList::default();
     list.count = get_attr_usize(start, b"count");
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -1271,7 +1286,6 @@ fn parse_data_processing_list<R: BufRead>(
         }
         buf.clear();
     }
-
     Ok(list)
 }
 
@@ -1286,7 +1300,7 @@ fn parse_data_processing<R: BufRead>(
         ..Default::default()
     };
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -1313,7 +1327,6 @@ fn parse_data_processing<R: BufRead>(
         }
         buf.clear();
     }
-
     Ok(dp)
 }
 
@@ -1328,7 +1341,7 @@ fn parse_processing_method<R: BufRead>(
         ..Default::default()
     };
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -1359,7 +1372,6 @@ fn parse_processing_method<R: BufRead>(
         }
         buf.clear();
     }
-
     Ok(pm)
 }
 
@@ -1380,7 +1392,7 @@ fn parse_run<R: BufRead>(
     };
 
     let end_tag = start.name();
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(1024);
 
     loop {
         match reader
@@ -1444,7 +1456,7 @@ fn parse_spectrum_list<R: BufRead>(
     list.count = get_attr_usize(start, b"count");
     list.default_data_processing_ref = get_attr(start, b"defaultDataProcessingRef");
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(1024);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -1497,8 +1509,7 @@ fn parse_spectrum<R: BufRead>(
         ..Default::default()
     };
 
-    let mut buf = Vec::new();
-
+    let mut buf = Vec::with_capacity(2048);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -1570,7 +1581,7 @@ fn parse_spectrum_description<R: BufRead>(
     _start: &BytesStart,
 ) -> Result<SpectrumDescription, String> {
     let mut sd = SpectrumDescription::default();
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(1024);
 
     loop {
         match reader
@@ -1629,7 +1640,7 @@ fn parse_scan_list<R: BufRead>(
     let mut list = ScanList::default();
     list.count = get_attr_usize(start, b"count");
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(1024);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -1671,8 +1682,7 @@ fn parse_scan<R: BufRead>(reader: &mut Reader<R>, start: &BytesStart) -> Result<
         ..Default::default()
     };
 
-    let mut buf = Vec::new();
-
+    let mut buf = Vec::with_capacity(1024);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -1721,7 +1731,7 @@ fn parse_scan_window_list<R: BufRead>(
     list.count = get_attr_usize(start, b"count");
 
     let end_tag = start.name();
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
 
     loop {
         match reader
@@ -1729,14 +1739,18 @@ fn parse_scan_window_list<R: BufRead>(
             .map_err(|e| e.to_string())?
         {
             Event::Start(e) => {
-                if e.name().as_ref() == b"scanWindow" || e.name().as_ref() == b"selectionWindow" {
+                let qname = e.name();
+                let n = local_name(qname.as_ref());
+                if n == b"scanWindow" || n == b"selectionWindow" {
                     list.scan_windows.push(parse_scan_window(reader, &e)?);
                 } else {
-                    skip_element(reader, e.name().as_ref())?;
+                    skip_element(reader, n)?;
                 }
             }
             Event::Empty(e) => {
-                if e.name().as_ref() == b"scanWindow" || e.name().as_ref() == b"selectionWindow" {
+                let qname = e.name();
+                let n = local_name(qname.as_ref());
+                if n == b"scanWindow" || n == b"selectionWindow" {
                     list.scan_windows.push(ScanWindow::default());
                 }
             }
@@ -1756,7 +1770,7 @@ fn parse_scan_window<R: BufRead>(
     _start: &BytesStart,
 ) -> Result<ScanWindow, String> {
     let mut w = ScanWindow::default();
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
 
     loop {
         match reader
@@ -1780,8 +1794,11 @@ fn parse_scan_window<R: BufRead>(
                 _ => skip_element(reader, e.name().as_ref())?,
             },
             Event::End(e)
-                if e.name().as_ref() == b"scanWindow"
-                    || e.name().as_ref() == b"selectionWindow" =>
+                if {
+                    let qname = e.name();
+                    let n = local_name(qname.as_ref());
+                    n == b"scanWindow" || n == b"selectionWindow"
+                } =>
             {
                 break;
             }
@@ -1802,7 +1819,7 @@ fn parse_precursor_list<R: BufRead>(
     let mut list = PrecursorList::default();
     list.count = get_attr_usize(start, b"count");
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(1024);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -1829,7 +1846,6 @@ fn parse_precursor_list<R: BufRead>(
         }
         buf.clear();
     }
-
     Ok(list)
 }
 
@@ -1839,7 +1855,7 @@ fn parse_ion_selection<R: BufRead>(
     _start: &BytesStart,
 ) -> Result<SelectedIon, String> {
     let mut s = SelectedIon::default();
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
 
     loop {
         match reader
@@ -1865,7 +1881,7 @@ fn parse_ion_selection<R: BufRead>(
                     skip_element(reader, e.name().as_ref())?;
                 }
             }
-            Event::End(e) if e.name().as_ref() == b"ionSelection" => break,
+            Event::End(e) if local_name(e.name().as_ref()) == b"ionSelection" => break,
             Event::Eof => break,
             _ => {}
         }
@@ -1887,37 +1903,68 @@ fn parse_precursor<R: BufRead>(
         ..Default::default()
     };
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(1024);
     loop {
         match reader
             .read_event_into(&mut buf)
             .map_err(|e| e.to_string())?
         {
-            Event::Start(e) => match e.name().as_ref() {
-                b"isolationWindow" => {
-                    p.isolation_window = Some(parse_isolation_window(reader, &e)?)
-                }
-                b"selectedIonList" => {
-                    p.selected_ion_list = Some(parse_selected_ion_list(reader, &e)?)
-                }
-                b"ionSelection" => {
-                    let ion = parse_ion_selection(reader, &e)?;
-                    let list = p.selected_ion_list.get_or_insert_with(Default::default);
-                    list.selected_ions.push(ion);
-                    list.count = Some(list.selected_ions.len());
-                }
-                b"activation" => p.activation = Some(parse_activation(reader, &e)?),
-                _ => skip_element(reader, e.name().as_ref())?,
-            },
-            Event::Empty(e) => {
-                if e.name().as_ref() == b"ionSelection" {
-                    let ion = SelectedIon::default();
-                    let list = p.selected_ion_list.get_or_insert_with(Default::default);
-                    list.selected_ions.push(ion);
-                    list.count = Some(list.selected_ions.len());
+            Event::Start(e) => {
+                let qname = e.name();
+                let raw = qname.as_ref();
+                match local_name(raw) {
+                    b"isolationWindow" => {
+                        p.isolation_window = Some(parse_isolation_window(reader, &e)?)
+                    }
+                    b"selectedIonList" => {
+                        p.selected_ion_list = Some(parse_selected_ion_list(reader, &e)?)
+                    }
+                    b"ionSelection" => {
+                        let ion = parse_ion_selection(reader, &e)?;
+                        let list = p.selected_ion_list.get_or_insert_with(Default::default);
+                        list.selected_ions.push(ion);
+                        list.count = Some(list.selected_ions.len());
+                    }
+                    b"activation" => p.activation = Some(parse_activation(reader, &e)?),
+                    b"referenceableParamGroupRef" | b"cvParam" | b"userParam" => {
+                        let w = p.isolation_window.get_or_insert_with(Default::default);
+                        if !push_params_start(
+                            reader,
+                            &e,
+                            &mut w.referenceable_param_group_refs,
+                            &mut w.cv_params,
+                            &mut w.user_params,
+                        )? {
+                            skip_element(reader, raw)?;
+                        }
+                    }
+                    _ => skip_element(reader, raw)?,
                 }
             }
-            Event::End(e) if e.name().as_ref() == b"precursor" => break,
+            Event::Empty(e) => {
+                let qname = e.name();
+                let raw = qname.as_ref();
+                match local_name(raw) {
+                    b"ionSelection" => {
+                        let list = p.selected_ion_list.get_or_insert_with(Default::default);
+                        list.selected_ions.push(SelectedIon::default());
+                        list.count = Some(list.selected_ions.len());
+                    }
+                    b"isolationWindow" => p.isolation_window = Some(IsolationWindow::default()),
+                    b"selectedIonList" => p.selected_ion_list = Some(SelectedIonList::default()),
+                    b"referenceableParamGroupRef" | b"cvParam" | b"userParam" => {
+                        let w = p.isolation_window.get_or_insert_with(Default::default);
+                        push_params_empty(
+                            &e,
+                            &mut w.referenceable_param_group_refs,
+                            &mut w.cv_params,
+                            &mut w.user_params,
+                        );
+                    }
+                    _ => {}
+                }
+            }
+            Event::End(e) if local_name(e.name().as_ref()) == b"precursor" => break,
             Event::Eof => break,
             _ => {}
         }
@@ -1933,7 +1980,7 @@ fn parse_isolation_window<R: BufRead>(
     _start: &BytesStart,
 ) -> Result<IsolationWindow, String> {
     let mut w = IsolationWindow::default();
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
 
     loop {
         match reader
@@ -1959,7 +2006,7 @@ fn parse_isolation_window<R: BufRead>(
                     skip_element(reader, e.name().as_ref())?;
                 }
             }
-            Event::End(e) if e.name().as_ref() == b"isolationWindow" => break,
+            Event::End(e) if local_name(e.name().as_ref()) == b"isolationWindow" => break,
             Event::Eof => break,
             _ => {}
         }
@@ -1977,7 +2024,7 @@ fn parse_selected_ion_list<R: BufRead>(
     let mut list = SelectedIonList::default();
     list.count = get_attr_usize(start, b"count");
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -2009,7 +2056,7 @@ fn parse_selected_ion<R: BufRead>(
     _start: &BytesStart,
 ) -> Result<SelectedIon, String> {
     let mut s = SelectedIon::default();
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
 
     loop {
         match reader
@@ -2051,7 +2098,7 @@ fn parse_activation<R: BufRead>(
     _start: &BytesStart,
 ) -> Result<Activation, String> {
     let mut a = Activation::default();
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
 
     loop {
         match reader
@@ -2077,7 +2124,7 @@ fn parse_activation<R: BufRead>(
                     skip_element(reader, e.name().as_ref())?;
                 }
             }
-            Event::End(e) if e.name().as_ref() == b"activation" => break,
+            Event::End(e) if local_name(e.name().as_ref()) == b"activation" => break,
             Event::Eof => break,
             _ => {}
         }
@@ -2095,7 +2142,7 @@ fn parse_product_list<R: BufRead>(
     let mut list = ProductList::default();
     list.count = get_attr_usize(start, b"count");
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -2136,20 +2183,20 @@ fn parse_product<R: BufRead>(
         ..Default::default()
     };
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
             .map_err(|e| e.to_string())?
         {
             Event::Start(e) => {
-                if e.name().as_ref() == b"isolationWindow" {
+                if local_name(e.name().as_ref()) == b"isolationWindow" {
                     p.isolation_window = Some(parse_isolation_window(reader, &e)?);
                 } else {
                     skip_element(reader, e.name().as_ref())?;
                 }
             }
-            Event::End(e) if e.name().as_ref() == b"product" => break,
+            Event::End(e) if local_name(e.name().as_ref()) == b"product" => break,
             Event::Eof => break,
             _ => {}
         }
@@ -2167,7 +2214,7 @@ fn parse_binary_data_array_list<R: BufRead>(
     let mut list = BinaryDataArrayList::default();
     list.count = get_attr_usize(start, b"count");
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(512);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -2212,7 +2259,7 @@ fn parse_binary_data_array<R: BufRead>(
     };
 
     let mut binary_b64: Option<String> = None;
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(1024);
 
     loop {
         match reader
@@ -2235,9 +2282,10 @@ fn parse_binary_data_array<R: BufRead>(
                     &mut a.cv_params,
                     &mut a.user_params,
                 )? {
-                    match e.name().as_ref() {
-                        b"binary" => binary_b64 = Some(read_text_content(reader, b"binary")?),
-                        _ => skip_element(reader, e.name().as_ref())?,
+                    if e.name().as_ref() == b"binary" {
+                        binary_b64 = Some(read_text_content(reader, b"binary")?);
+                    } else {
+                        skip_element(reader, e.name().as_ref())?;
                     }
                 }
             }
@@ -2307,6 +2355,12 @@ struct BinaryArrayFlags {
     is_f32: bool,
 }
 
+fn has_acc(cv_params: &[CvParam], acc: &str) -> bool {
+    cv_params
+        .iter()
+        .any(|p| p.accession.as_deref() == Some(acc))
+}
+
 fn binary_array_flags(binary_data_array: &BinaryDataArray) -> BinaryArrayFlags {
     let cv = &binary_data_array.cv_params;
 
@@ -2363,12 +2417,6 @@ fn decode_f32_into(bytes: &[u8], little: bool, want: usize, out: &mut Vec<f32>) 
     }
 }
 
-fn has_acc(cv_params: &[CvParam], acc: &str) -> bool {
-    cv_params
-        .iter()
-        .any(|p| p.accession.as_deref() == Some(acc))
-}
-
 /// <chromatogramList>
 fn parse_chromatogram_list<R: BufRead>(
     reader: &mut Reader<R>,
@@ -2378,7 +2426,7 @@ fn parse_chromatogram_list<R: BufRead>(
     list.count = get_attr_usize(start, b"count");
     list.default_data_processing_ref = get_attr(start, b"defaultDataProcessingRef");
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(1024);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -2425,7 +2473,7 @@ fn parse_chromatogram<R: BufRead>(
         ..Default::default()
     };
 
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(1024);
     loop {
         match reader
             .read_event_into(&mut buf)
@@ -2497,7 +2545,7 @@ pub fn parse_index_list(bytes: &[u8]) -> Result<Option<IndexList>, String> {
     };
 
     let mut saw_any = false;
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(1024);
 
     loop {
         match reader
@@ -2549,7 +2597,7 @@ fn parse_index_list_tag<R: BufRead>(
 ) -> Result<(Vec<IndexOffset>, Vec<IndexOffset>), String> {
     let mut spectrum = Vec::new();
     let mut chromatogram = Vec::new();
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(1024);
 
     loop {
         match reader
@@ -2581,7 +2629,7 @@ fn parse_index_tag<R: BufRead>(
 ) -> Result<(String, Vec<IndexOffset>), String> {
     let name = get_attr(start, b"name").unwrap_or_default();
     let mut offsets = Vec::new();
-    let mut buf = Vec::new();
+    let mut buf = Vec::with_capacity(1024);
 
     loop {
         match reader

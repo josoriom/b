@@ -3,6 +3,7 @@ use zstd::bulk::compress as zstd_compress;
 
 use std::collections::HashMap;
 
+use crate::utilities::attr_meta::*;
 use crate::utilities::mzml::*;
 
 #[derive(Debug)]
@@ -61,8 +62,7 @@ fn compress_bytes(input: &[u8], compression_level: u8) -> Vec<u8> {
     if compression_level == 0 {
         return input.to_vec();
     }
-    let level = compression_level as i32;
-    zstd_compress(input, level).unwrap_or_else(|_| input.to_vec())
+    zstd_compress(input, compression_level as i32).unwrap_or_else(|_| input.to_vec())
 }
 
 #[inline]
@@ -111,10 +111,9 @@ fn elem_size(store_f64: bool) -> usize {
 #[inline]
 fn write_f32_slice_le(buf: &mut Vec<u8>, xs: &[f32]) {
     if cfg!(target_endian = "little") {
-        let n = xs.len() * 4;
         unsafe {
             let p = xs.as_ptr() as *const u8;
-            let b = std::slice::from_raw_parts(p, n);
+            let b = std::slice::from_raw_parts(p, xs.len() * 4);
             buf.extend_from_slice(b);
         }
     } else {
@@ -127,10 +126,9 @@ fn write_f32_slice_le(buf: &mut Vec<u8>, xs: &[f32]) {
 #[inline]
 fn write_f64_slice_le(buf: &mut Vec<u8>, xs: &[f64]) {
     if cfg!(target_endian = "little") {
-        let n = xs.len() * 8;
         unsafe {
             let p = xs.as_ptr() as *const u8;
-            let b = std::slice::from_raw_parts(p, n);
+            let b = std::slice::from_raw_parts(p, xs.len() * 8);
             buf.extend_from_slice(b);
         }
     } else {
@@ -276,10 +274,7 @@ impl ContainerBuilder {
 
     #[inline]
     fn ensure_room_for_item(&mut self, item_bytes: usize) {
-        if self.current.is_empty() {
-            return;
-        }
-        if self.current.len() + item_bytes > self.target_uncomp_bytes {
+        if !self.current.is_empty() && self.current.len() + item_bytes > self.target_uncomp_bytes {
             self.flush_current();
         }
     }
@@ -293,7 +288,6 @@ impl ContainerBuilder {
             if !self.current.is_empty() {
                 self.flush_current();
             }
-
             let block_id = self.current_block_id();
             self.current.reserve(item_bytes);
             write_fn(&mut self.current);
@@ -332,7 +326,21 @@ impl ContainerBuilder {
 pub fn encode(mzml: &MzML, compression_level: u8, f32_compress: bool) -> Vec<u8> {
     assert!(compression_level <= 22);
 
-    let do_shuffle = compression_level != 0;
+    #[inline]
+    fn fix_attr_values(out: &mut Vec<CvParam>) {
+        for cv in out.iter_mut() {
+            if cv.cv_ref.as_deref() == Some(CV_REF_ATTR) {
+                let empty_val = cv.value.as_deref().map_or(true, |s| s.is_empty());
+                if empty_val && !cv.name.is_empty() {
+                    cv.value = Some(std::mem::take(&mut cv.name));
+                }
+            }
+        }
+    }
+
+    let compress_meta = compression_level != 0;
+    let do_shuffle = compress_meta;
+
     let array_filter_id = if do_shuffle {
         ARRAY_FILTER_BYTE_SHUFFLE
     } else {
@@ -391,7 +399,11 @@ pub fn encode(mzml: &MzML, compression_level: u8, f32_compress: bool) -> Vec<u8>
     let chrom_y_elem_size = elem_size(chrom_y_store_f64);
 
     let ref_groups = build_ref_group_map(mzml);
-    let (global_items, global_counts) = build_global_meta_items(mzml, &ref_groups);
+
+    let (mut global_items, global_counts) = build_global_meta_items(mzml, &ref_groups);
+    for v in &mut global_items {
+        fix_attr_values(v);
+    }
 
     let spectrum_meta = pack_meta_streaming(spectra, |out, s| {
         flatten_spectrum_metadata_into(
@@ -403,6 +415,7 @@ pub fn encode(mzml: &MzML, compression_level: u8, f32_compress: bool) -> Vec<u8>
             spect_x_store_f64,
             spect_y_store_f64,
         );
+        fix_attr_values(out);
     });
 
     let chromatogram_meta = pack_meta_streaming(chromatograms, |out, c| {
@@ -415,6 +428,7 @@ pub fn encode(mzml: &MzML, compression_level: u8, f32_compress: bool) -> Vec<u8>
             chrom_x_store_f64,
             chrom_y_store_f64,
         );
+        fix_attr_values(out);
     });
 
     let global_meta = pack_meta(&global_items, |m| m.as_slice());
@@ -431,21 +445,13 @@ pub fn encode(mzml: &MzML, compression_level: u8, f32_compress: bool) -> Vec<u8>
     let global_num_count = global_meta.numeric_values.len() as u32;
     let global_str_count = global_meta.string_offsets.len() as u32;
 
-    let compress_spec_meta = compression_level != 0;
-    let compress_chrom_meta = compression_level != 0;
-    let compress_global_meta = compression_level != 0;
-
     let mut spectrum_meta_bytes = write_packed_meta_bytes(&spectrum_meta);
     let mut chromatogram_meta_bytes = write_packed_meta_bytes(&chromatogram_meta);
     let mut global_meta_bytes = write_global_meta_bytes(&global_counts, &global_meta);
 
-    if compress_spec_meta {
+    if compress_meta {
         spectrum_meta_bytes = compress_bytes(&spectrum_meta_bytes, compression_level);
-    }
-    if compress_chrom_meta {
         chromatogram_meta_bytes = compress_bytes(&chromatogram_meta_bytes, compression_level);
-    }
-    if compress_global_meta {
         global_meta_bytes = compress_bytes(&global_meta_bytes, compression_level);
     }
 
@@ -490,7 +496,6 @@ pub fn encode(mzml: &MzML, compression_level: u8, f32_compress: bool) -> Vec<u8>
         let x_block_id = spec_x_builder.write_item(x_item_bytes, |buf| {
             write_array(buf, x, spect_x_store_f64);
         });
-
         let y_block_id = spec_y_builder.write_item(y_item_bytes, |buf| {
             write_array(buf, y, spect_y_store_f64);
         });
@@ -519,7 +524,6 @@ pub fn encode(mzml: &MzML, compression_level: u8, f32_compress: bool) -> Vec<u8>
         let x_block_id = chrom_x_builder.write_item(x_item_bytes, |buf| {
             write_array(buf, x, chrom_x_store_f64);
         });
-
         let y_block_id = chrom_y_builder.write_item(y_item_bytes, |buf| {
             write_array(buf, y, chrom_y_store_f64);
         });
@@ -628,12 +632,7 @@ pub fn encode(mzml: &MzML, compression_level: u8, f32_compress: bool) -> Vec<u8>
         set_u8_at(
             header,
             172,
-            header_codec_and_flags(
-                HDR_CODEC_ZSTD,
-                compress_spec_meta,
-                compress_chrom_meta,
-                compress_global_meta,
-            ),
+            header_codec_and_flags(HDR_CODEC_ZSTD, compress_meta, compress_meta, compress_meta),
         );
 
         set_u8_at(header, 173, if chrom_x_store_f64 { 2 } else { 1 });
@@ -685,6 +684,10 @@ fn build_global_meta_items(
         v.extend_from_slice(&fd.file_content.cv_params);
 
         for sf in &fd.source_file_list.source_file {
+            push_attr_string(&mut v, ACC_ATTR_ID, sf.id.as_str()); // ACC_ATTR_ID
+            push_attr_string(&mut v, ACC_ATTR_NAME, sf.name.as_str()); // ACC_ATTR_NAME
+            push_attr_string(&mut v, ACC_ATTR_LOCATION, sf.location.as_str()); // ACC_ATTR_LOCATION
+
             extend_ref_group_cv_params(&mut v, &sf.referenceable_param_group_ref, ref_groups);
             v.extend_from_slice(&sf.cv_param);
         }
@@ -702,6 +705,7 @@ fn build_global_meta_items(
     if let Some(rpgl) = &mzml.referenceable_param_group_list {
         for g in &rpgl.referenceable_param_groups {
             let mut v = Vec::new();
+            push_attr_string(&mut v, ACC_ATTR_ID, g.id.as_str()); // ACC_ATTR_ID
             v.extend_from_slice(&g.cv_params);
             items.push(v);
         }
@@ -712,6 +716,9 @@ fn build_global_meta_items(
     if let Some(sl) = &mzml.sample_list {
         for s in &sl.samples {
             let mut v = Vec::new();
+            push_attr_string(&mut v, ACC_ATTR_ID, s.id.as_str()); // ACC_ATTR_ID
+            push_attr_string(&mut v, ACC_ATTR_NAME, s.name.as_str()); // ACC_ATTR_NAME
+
             if let Some(r) = &s.referenceable_param_group_ref {
                 extend_ref_group_cv_params(&mut v, std::slice::from_ref(r), ref_groups);
             }
@@ -725,6 +732,8 @@ fn build_global_meta_items(
     if let Some(il) = &mzml.instrument_list {
         for ic in &il.instrument {
             let mut v = Vec::new();
+            push_attr_string(&mut v, ACC_ATTR_ID, ic.id.as_str()); // ACC_ATTR_ID
+
             extend_ref_group_cv_params(&mut v, &ic.referenceable_param_group_ref, ref_groups);
             v.extend_from_slice(&ic.cv_param);
 
@@ -764,7 +773,28 @@ fn build_global_meta_items(
     if let Some(sw) = &mzml.software_list {
         for s in &sw.software {
             let mut v = Vec::new();
+            push_attr_string(&mut v, ACC_ATTR_ID, s.id.as_str()); // ACC_ATTR_ID
+            let ver = s
+                .version
+                .as_deref()
+                .or_else(|| s.software_param.first().and_then(|p| p.version.as_deref()));
+            if let Some(ver) = ver {
+                push_attr_string(&mut v, ACC_ATTR_VERSION, ver); // ACC_ATTR_VERSION
+            }
+
+            for p in &s.software_param {
+                v.push(CvParam {
+                    cv_ref: p.cv_ref.clone(),
+                    accession: Some(p.accession.clone()),
+                    name: p.name.clone(),
+                    value: Some(String::new()),
+                    unit_cv_ref: None,
+                    unit_name: None,
+                    unit_accession: None,
+                });
+            }
             v.extend_from_slice(&s.cv_param);
+
             items.push(v);
         }
     }
@@ -774,6 +804,8 @@ fn build_global_meta_items(
     if let Some(dpl) = &mzml.data_processing_list {
         for dp in &dpl.data_processing {
             let mut v = Vec::new();
+            push_attr_string(&mut v, ACC_ATTR_ID, dp.id.as_str()); // ACC_ATTR_ID
+
             for m in &dp.processing_method {
                 extend_ref_group_cv_params(&mut v, &m.referenceable_param_group_ref, ref_groups);
                 v.extend_from_slice(&m.cv_param);
@@ -787,6 +819,19 @@ fn build_global_meta_items(
     if let Some(ssl) = &mzml.scan_settings_list {
         for ss in &ssl.scan_settings {
             let mut v = Vec::new();
+
+            if let Some(id) = ss.id.as_deref() {
+                push_attr_string(&mut v, ACC_ATTR_ID, id); // ACC_ATTR_ID
+            }
+            if let Some(icr) = ss.instrument_configuration_ref.as_deref() {
+                push_attr_string(&mut v, ACC_ATTR_INSTRUMENT_CONFIGURATION_REF, icr); // ACC_ATTR_INSTRUMENT_CONFIGURATION_REF
+            }
+
+            if let Some(sfrl) = &ss.source_file_ref_list {
+                for sref in &sfrl.source_file_refs {
+                    push_attr_string(&mut v, ACC_ATTR_REF, sref.r#ref.as_str()); // ACC_ATTR_REF
+                }
+            }
 
             extend_ref_group_cv_params(&mut v, &ss.referenceable_param_group_refs, ref_groups);
             v.extend_from_slice(&ss.cv_params);
@@ -870,6 +915,14 @@ fn flatten_spectrum_metadata_into(
     x_store_f64: bool,
     y_store_f64: bool,
 ) {
+    push_attr_string(out, ACC_ATTR_ID, spectrum.id.as_str()); // ACC_ATTR_ID
+    push_attr_u32(out, ACC_ATTR_INDEX, spectrum.index); // ACC_ATTR_INDEX
+    push_attr_usize(
+        out,
+        ACC_ATTR_DEFAULT_ARRAY_LENGTH,
+        spectrum.default_array_length,
+    ); // ACC_ATTR_DEFAULT_ARRAY_LENGTH
+
     extend_ref_group_cv_params(out, &spectrum.referenceable_param_group_refs, ref_groups);
     out.extend_from_slice(&spectrum.cv_params);
 
@@ -923,6 +976,14 @@ fn flatten_chromatogram_metadata_into(
     x_store_f64: bool,
     y_store_f64: bool,
 ) {
+    push_attr_string(out, ACC_ATTR_ID, chrom.id.as_str()); // ACC_ATTR_ID
+    push_attr_u32(out, ACC_ATTR_INDEX, chrom.index); // ACC_ATTR_INDEX
+    push_attr_usize(
+        out,
+        ACC_ATTR_DEFAULT_ARRAY_LENGTH,
+        chrom.default_array_length,
+    ); // ACC_ATTR_DEFAULT_ARRAY_LENGTH
+
     extend_ref_group_cv_params(out, &chrom.referenceable_param_group_refs, ref_groups);
     out.extend_from_slice(&chrom.cv_params);
 
@@ -983,6 +1044,10 @@ fn flatten_precursor(
     precursor: &Precursor,
     ref_groups: &HashMap<&str, &ReferenceableParamGroup>,
 ) {
+    if let Some(r) = precursor.spectrum_ref.as_deref() {
+        push_attr_string(out, ACC_ATTR_SPECTRUM_REF, r); // ACC_ATTR_SPECTRUM_REF
+    }
+
     if let Some(iw) = &precursor.isolation_window {
         extend_ref_group_cv_params(out, &iw.referenceable_param_group_refs, ref_groups);
         out.extend_from_slice(&iw.cv_params);
@@ -1102,12 +1167,63 @@ fn ms_float_param(accession_tail: u32) -> CvParam {
     }
 }
 
+#[inline]
+fn pack_cv_param(
+    cv: &CvParam,
+    ref_codes: &mut Vec<u8>,
+    accession_numbers: &mut Vec<u32>,
+    unit_ref_codes: &mut Vec<u8>,
+    unit_accession_numbers: &mut Vec<u32>,
+    value_kinds: &mut Vec<u8>,
+    value_indices: &mut Vec<u32>,
+    numeric_values: &mut Vec<f64>,
+    string_offsets: &mut Vec<u32>,
+    string_lengths: &mut Vec<u32>,
+    string_bytes: &mut Vec<u8>,
+    numeric_index: &mut u32,
+    string_index: &mut u32,
+) {
+    ref_codes.push(opt_cv_ref_code(cv.cv_ref.as_deref()));
+    accession_numbers.push(parse_accession_tail(cv.accession.as_deref()));
+
+    unit_ref_codes.push(opt_cv_ref_code(cv.unit_cv_ref.as_deref()));
+    unit_accession_numbers.push(parse_accession_tail(cv.unit_accession.as_deref()));
+
+    let (kind, idx) = match cv.value.as_deref() {
+        None | Some("") => (2u8, 0u32),
+        Some(val) => {
+            if let Ok(num) = val.parse::<f64>() {
+                let i = *numeric_index;
+                numeric_values.push(num);
+                *numeric_index += 1;
+                (0u8, i)
+            } else {
+                let i = *string_index;
+                let bytes = val.as_bytes();
+                let off = string_bytes.len() as u32;
+                let len = bytes.len() as u32;
+
+                string_bytes.extend_from_slice(bytes);
+                string_offsets.push(off);
+                string_lengths.push(len);
+
+                *string_index += 1;
+                (1u8, i)
+            }
+        }
+    };
+
+    value_kinds.push(kind);
+    value_indices.push(idx);
+}
+
 /// <cvParam>
 fn pack_meta<T, F>(items: &[T], cv_params_of: F) -> PackedMeta
 where
     F: Fn(&T) -> &[CvParam],
 {
     let item_count = items.len();
+
     let mut total_meta_count = 0usize;
     for item in items {
         total_meta_count += cv_params_of(item).len();
@@ -1134,44 +1250,23 @@ where
 
     for item in items {
         for cv in cv_params_of(item) {
-            let code_ref = opt_cv_ref_code(cv.cv_ref.as_deref());
-            let code_acc = parse_accession_tail(cv.accession.as_deref());
-
-            let unit_ref = opt_cv_ref_code(cv.unit_cv_ref.as_deref());
-            let unit_acc = parse_accession_tail(cv.unit_accession.as_deref());
-
-            ref_codes.push(code_ref);
-            accession_numbers.push(code_acc);
-            unit_ref_codes.push(unit_ref);
-            unit_accession_numbers.push(unit_acc);
-
-            let (kind, idx) = match cv.value.as_deref() {
-                None | Some("") => (2u8, 0u32),
-                Some(val) => {
-                    if let Ok(num) = val.parse::<f64>() {
-                        let i = numeric_index;
-                        numeric_values.push(num);
-                        numeric_index += 1;
-                        (0u8, i)
-                    } else {
-                        let i = string_index;
-                        let bytes = val.as_bytes();
-                        let off = string_bytes.len() as u32;
-                        let len = bytes.len() as u32;
-                        string_bytes.extend_from_slice(bytes);
-                        string_offsets.push(off);
-                        string_lengths.push(len);
-                        string_index += 1;
-                        (1u8, i)
-                    }
-                }
-            };
-
-            value_kinds.push(kind);
-            value_indices.push(idx);
+            pack_cv_param(
+                cv,
+                &mut ref_codes,
+                &mut accession_numbers,
+                &mut unit_ref_codes,
+                &mut unit_accession_numbers,
+                &mut value_kinds,
+                &mut value_indices,
+                &mut numeric_values,
+                &mut string_offsets,
+                &mut string_lengths,
+                &mut string_bytes,
+                &mut numeric_index,
+                &mut string_index,
+            );
             meta_index += 1;
         }
-
         index_offsets.push(meta_index);
     }
 
@@ -1230,41 +1325,21 @@ where
         value_indices.reserve(n);
 
         for cv in &scratch {
-            let code_ref = opt_cv_ref_code(cv.cv_ref.as_deref());
-            let code_acc = parse_accession_tail(cv.accession.as_deref());
-
-            let unit_ref = opt_cv_ref_code(cv.unit_cv_ref.as_deref());
-            let unit_acc = parse_accession_tail(cv.unit_accession.as_deref());
-
-            ref_codes.push(code_ref);
-            accession_numbers.push(code_acc);
-            unit_ref_codes.push(unit_ref);
-            unit_accession_numbers.push(unit_acc);
-
-            let (kind, idx) = match cv.value.as_deref() {
-                None | Some("") => (2u8, 0u32),
-                Some(val) => {
-                    if let Ok(num) = val.parse::<f64>() {
-                        let i = numeric_index;
-                        numeric_values.push(num);
-                        numeric_index += 1;
-                        (0u8, i)
-                    } else {
-                        let i = string_index;
-                        let bytes = val.as_bytes();
-                        let off = string_bytes.len() as u32;
-                        let len = bytes.len() as u32;
-                        string_bytes.extend_from_slice(bytes);
-                        string_offsets.push(off);
-                        string_lengths.push(len);
-                        string_index += 1;
-                        (1u8, i)
-                    }
-                }
-            };
-
-            value_kinds.push(kind);
-            value_indices.push(idx);
+            pack_cv_param(
+                cv,
+                &mut ref_codes,
+                &mut accession_numbers,
+                &mut unit_ref_codes,
+                &mut unit_accession_numbers,
+                &mut value_kinds,
+                &mut value_indices,
+                &mut numeric_values,
+                &mut string_offsets,
+                &mut string_lengths,
+                &mut string_bytes,
+                &mut numeric_index,
+                &mut string_index,
+            );
             meta_index += 1;
         }
 
@@ -1510,6 +1585,7 @@ fn opt_cv_ref_code(cv_ref: Option<&str>) -> u8 {
         Some("UO") => 1,
         Some("NCIT") => 2,
         Some("PEFF") => 3,
+        Some(CV_REF_ATTR) => 4,
         _ => 255,
     }
 }
