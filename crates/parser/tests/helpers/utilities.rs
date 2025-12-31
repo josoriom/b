@@ -1,6 +1,7 @@
 use std::{fs, path::PathBuf, sync::OnceLock};
 
 use b::utilities::{
+    decode::decode,
     mzml::{
         Chromatogram, ChromatogramList, CvParam, MzML, PrecursorList, Run, ScanList, Software,
         SoftwareParam, Spectrum, SpectrumDescription,
@@ -16,10 +17,19 @@ pub enum CvRefMode {
     AllowMissingMs,
 }
 
+#[allow(dead_code)]
 pub fn mzml(cache: &'static OnceLock<MzML>, path: &str) -> &'static MzML {
     cache.get_or_init(|| {
         let bytes = load_mzml_bytes(path);
         parse_mzml(&bytes, false).unwrap_or_else(|e| panic!("parse_mzml failed: {e}"))
+    })
+}
+
+#[allow(dead_code)]
+pub fn parse_b(cache: &'static OnceLock<MzML>, path: &str) -> &'static MzML {
+    cache.get_or_init(|| {
+        let bytes = load_mzml_bytes(path);
+        decode(&bytes).unwrap_or_else(|e| panic!("parse_mzml failed: {e}"))
     })
 }
 

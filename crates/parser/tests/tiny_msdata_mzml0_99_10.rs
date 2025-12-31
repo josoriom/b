@@ -4,9 +4,9 @@ use std::sync::OnceLock;
 
 use b::utilities::mzml::MzML;
 
-use helpers::mzml::{
-    CvRefMode, assert_cv, assert_software, mzml as mzml_from_path, spectrum_description,
-    spectrum_precursor_list, spectrum_scan_list,
+use helpers::utilities::{
+    CvRefMode, assert_cv, assert_software, mzml, spectrum_description, spectrum_precursor_list,
+    spectrum_scan_list,
 };
 
 static MZML_CACHE: OnceLock<MzML> = OnceLock::new();
@@ -14,13 +14,9 @@ static MZML_CACHE: OnceLock<MzML> = OnceLock::new();
 const PATH: &str = "data/mzml/tiny.msdata.mzML0.99.10.mzML";
 const CV_REF_MODE: CvRefMode = CvRefMode::Strict;
 
-fn mzml() -> &'static MzML {
-    mzml_from_path(&MZML_CACHE, PATH)
-}
-
 #[test]
 fn tiny_msdata_mzml0_99_10_header_sections() {
-    let mzml = mzml();
+    let mzml = mzml(&MZML_CACHE, PATH);
 
     // cvList
     let cv_list = mzml.cv_list.as_ref().expect("cvList parsed");
@@ -62,7 +58,7 @@ fn tiny_msdata_mzml0_99_10_header_sections() {
     assert_cv(
         CV_REF_MODE,
         &sf0.cv_param,
-        "Xcalibur RAW file",
+        "Thermo RAW format",
         "MS:1000563",
         "MS",
         Some(""),
@@ -294,8 +290,8 @@ fn tiny_msdata_mzml0_99_10_header_sections() {
         assert_cv(
             CV_REF_MODE,
             &t.cv_params,
-            "precursorMz",
-            "MS:1000xxx",
+            "isolation window target m/z",
+            "MS:1000827",
             "MS",
             Some(precursor_vals[i]),
             None,
@@ -303,8 +299,8 @@ fn tiny_msdata_mzml0_99_10_header_sections() {
         assert_cv(
             CV_REF_MODE,
             &t.cv_params,
-            "fragmentMz",
-            "MS:1000xxx",
+            "product ion m/z",
+            "MS:1001225",
             "MS",
             Some(fragment_vals[i]),
             None,
@@ -313,26 +309,26 @@ fn tiny_msdata_mzml0_99_10_header_sections() {
             CV_REF_MODE,
             &t.cv_params,
             "dwell time",
-            "MS:1000xxx",
+            "MS:1000502",
             "MS",
             Some("1"),
-            Some("seconds"),
+            Some("second"),
         );
         assert_cv(
             CV_REF_MODE,
             &t.cv_params,
-            "active time",
-            "MS:1000xxx",
+            "completion time",
+            "MS:1000747",
             "MS",
             Some("0.5"),
-            Some("seconds"),
+            Some("second"),
         );
     }
 }
 
 #[test]
 fn tiny_msdata_mzml0_99_10_first_spectrum() {
-    let mzml = mzml();
+    let mzml = mzml(&MZML_CACHE, PATH);
     let run = &mzml.run;
 
     // spectrumList
@@ -368,7 +364,7 @@ fn tiny_msdata_mzml0_99_10_first_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
-        "centroid mass spectrum",
+        "centroid spectrum",
         "MS:1000127",
         "MS",
         Some(""),
@@ -377,7 +373,7 @@ fn tiny_msdata_mzml0_99_10_first_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
-        "lowest m/z value",
+        "lowest observed m/z",
         "MS:1000528",
         "MS",
         Some("400.39"),
@@ -386,7 +382,7 @@ fn tiny_msdata_mzml0_99_10_first_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
-        "highest m/z value",
+        "highest observed m/z",
         "MS:1000527",
         "MS",
         Some("1795.56"),
@@ -433,7 +429,7 @@ fn tiny_msdata_mzml0_99_10_first_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &scan0.cv_params,
-        "scan time",
+        "scan start time",
         "MS:1000016",
         "MS",
         Some("5.8905"),
@@ -459,7 +455,7 @@ fn tiny_msdata_mzml0_99_10_first_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &win0.cv_params,
-        "scan m/z lower limit",
+        "scan window lower limit",
         "MS:1000501",
         "MS",
         Some("400"),
@@ -468,7 +464,7 @@ fn tiny_msdata_mzml0_99_10_first_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &win0.cv_params,
-        "scan m/z upper limit",
+        "scan window upper limit",
         "MS:1000500",
         "MS",
         Some("1800"),
@@ -520,7 +516,7 @@ fn tiny_msdata_mzml0_99_10_first_spectrum() {
 
 #[test]
 fn tiny_msdata_mzml0_99_10_second_spectrum() {
-    let mzml = mzml();
+    let mzml = mzml(&MZML_CACHE, PATH);
     let run = &mzml.run;
 
     // spectrumList
@@ -556,7 +552,7 @@ fn tiny_msdata_mzml0_99_10_second_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
-        "centroid mass spectrum",
+        "centroid spectrum",
         "MS:1000127",
         "MS",
         Some(""),
@@ -565,7 +561,7 @@ fn tiny_msdata_mzml0_99_10_second_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
-        "lowest m/z value",
+        "lowest observed m/z",
         "MS:1000528",
         "MS",
         Some("320.39"),
@@ -574,7 +570,7 @@ fn tiny_msdata_mzml0_99_10_second_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
-        "highest m/z value",
+        "highest observed m/z",
         "MS:1000527",
         "MS",
         Some("1003.56"),
@@ -622,8 +618,8 @@ fn tiny_msdata_mzml0_99_10_second_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &iw.cv_params,
-        "isolation center m/z",
-        "MS:1000xxx",
+        "isolation window target m/z",
+        "MS:1000827",
         "MS",
         Some("445.34"),
         None,
@@ -631,8 +627,17 @@ fn tiny_msdata_mzml0_99_10_second_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &iw.cv_params,
-        "isolation half width",
-        "MS:1000xxx",
+        "isolation window lower offset",
+        "MS:1000828",
+        "MS",
+        Some("2.0"),
+        None,
+    );
+    assert_cv(
+        CV_REF_MODE,
+        &iw.cv_params,
+        "isolation window upper offset",
+        "MS:1000829",
         "MS",
         Some("2.0"),
         None,
@@ -693,7 +698,7 @@ fn tiny_msdata_mzml0_99_10_second_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &scan1.cv_params,
-        "scan time",
+        "scan start time",
         "MS:1000016",
         "MS",
         Some("5.9905"),
@@ -719,7 +724,7 @@ fn tiny_msdata_mzml0_99_10_second_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &win1.cv_params,
-        "scan m/z lower limit",
+        "scan window lower limit",
         "MS:1000501",
         "MS",
         Some("110"),
@@ -728,7 +733,7 @@ fn tiny_msdata_mzml0_99_10_second_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &win1.cv_params,
-        "scan m/z upper limit",
+        "scan window upper limit",
         "MS:1000500",
         "MS",
         Some("905"),

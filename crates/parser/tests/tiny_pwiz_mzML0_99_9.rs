@@ -4,9 +4,9 @@ use std::sync::OnceLock;
 
 use b::utilities::mzml::MzML;
 
-use helpers::mzml::{
-    CvRefMode, assert_cv, assert_software, chromatogram, chromatogram_list, spectrum_by_index,
-    spectrum_description, spectrum_precursor_list, spectrum_scan_list,
+use helpers::utilities::{
+    CvRefMode, assert_cv, assert_software, chromatogram, chromatogram_list, mzml,
+    spectrum_by_index, spectrum_description, spectrum_precursor_list, spectrum_scan_list,
 };
 
 static MZML_CACHE: OnceLock<MzML> = OnceLock::new();
@@ -14,13 +14,9 @@ static MZML_CACHE: OnceLock<MzML> = OnceLock::new();
 const PATH: &str = "data/mzml/tiny.pwiz.mzML0.99.9.mzML";
 const CV_REF_MODE: CvRefMode = CvRefMode::Strict;
 
-fn mzml() -> &'static MzML {
-    helpers::mzml::mzml(&MZML_CACHE, PATH)
-}
-
 #[test]
 fn tiny_msdata_mzml0_99_9_pwiz_header_sections() {
-    let mzml = mzml();
+    let mzml = mzml(&MZML_CACHE, PATH);
 
     // cvList
     let cv_list = mzml.cv_list.as_ref().expect("cvList parsed");
@@ -61,7 +57,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_header_sections() {
     assert_cv(
         CV_REF_MODE,
         &sf0.cv_param,
-        "Xcalibur RAW file",
+        "Thermo RAW format",
         "MS:1000563",
         "MS",
         Some(""),
@@ -266,7 +262,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_header_sections() {
 
 #[test]
 fn tiny_msdata_mzml0_99_9_pwiz_first_spectrum() {
-    let mzml = mzml();
+    let mzml = mzml(&MZML_CACHE, PATH);
     let run = &mzml.run;
 
     // sourceFileRefList
@@ -308,7 +304,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_first_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
-        "centroid mass spectrum",
+        "centroid spectrum",
         "MS:1000127",
         "MS",
         Some(""),
@@ -317,7 +313,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_first_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
-        "lowest m/z value",
+        "lowest observed m/z",
         "MS:1000528",
         "MS",
         Some("400.39"),
@@ -326,7 +322,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_first_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
-        "highest m/z value",
+        "highest observed m/z",
         "MS:1000527",
         "MS",
         Some("1795.56"),
@@ -371,7 +367,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_first_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &scan0.cv_params,
-        "scan time",
+        "scan start time",
         "MS:1000016",
         "MS",
         Some("5.8905"),
@@ -405,7 +401,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_first_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &win0.cv_params,
-        "scan m/z lower limit",
+        "scan window lower limit",
         "MS:1000501",
         "MS",
         Some("400"),
@@ -414,7 +410,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_first_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &win0.cv_params,
-        "scan m/z upper limit",
+        "scan window upper limit",
         "MS:1000500",
         "MS",
         Some("1800"),
@@ -467,7 +463,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_first_spectrum() {
 
 #[test]
 fn tiny_msdata_mzml0_99_9_pwiz_second_spectrum() {
-    let mzml = mzml();
+    let mzml = mzml(&MZML_CACHE, PATH);
     let run = &mzml.run;
 
     let sl = run.spectrum_list.as_ref().expect("spectrumList parsed");
@@ -501,7 +497,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_second_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
-        "centroid mass spectrum",
+        "centroid spectrum",
         "MS:1000127",
         "MS",
         Some(""),
@@ -510,7 +506,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_second_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
-        "lowest m/z value",
+        "lowest observed m/z",
         "MS:1000528",
         "MS",
         Some("320.39"),
@@ -519,7 +515,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_second_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
-        "highest m/z value",
+        "highest observed m/z",
         "MS:1000527",
         "MS",
         Some("1003.56"),
@@ -619,7 +615,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_second_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &scan1.cv_params,
-        "scan time",
+        "scan start time",
         "MS:1000016",
         "MS",
         Some("5.9905"),
@@ -653,7 +649,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_second_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &win1.cv_params,
-        "scan m/z lower limit",
+        "scan window lower limit",
         "MS:1000501",
         "MS",
         Some("110"),
@@ -662,7 +658,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_second_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &win1.cv_params,
-        "scan m/z upper limit",
+        "scan window upper limit",
         "MS:1000500",
         "MS",
         Some("905"),
@@ -715,7 +711,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_second_spectrum() {
 
 #[test]
 fn tiny_msdata_mzml0_99_9_pwiz_chromatograms() {
-    let mzml = mzml();
+    let mzml = mzml(&MZML_CACHE, PATH);
     let run = &mzml.run;
 
     let cl = chromatogram_list(run);

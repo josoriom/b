@@ -4,9 +4,9 @@ use std::sync::OnceLock;
 
 use b::utilities::mzml::MzML;
 
-use helpers::mzml::{
-    CvRefMode, assert_cv, assert_cv_f64, assert_software, spectrum_by_id, spectrum_description,
-    spectrum_precursor_list, spectrum_scan_list,
+use helpers::utilities::{
+    CvRefMode, assert_cv, assert_cv_f64, assert_software, mzml, spectrum_by_id,
+    spectrum_description, spectrum_precursor_list, spectrum_scan_list,
 };
 
 static MZML_CACHE: OnceLock<MzML> = OnceLock::new();
@@ -14,13 +14,9 @@ static MZML_CACHE: OnceLock<MzML> = OnceLock::new();
 const PATH: &str = "data/mzml/tiny1.mzML0.99.0.mzML";
 const CV_REF_MODE: CvRefMode = CvRefMode::AllowMissingMs;
 
-fn mzml() -> &'static MzML {
-    helpers::mzml::mzml(&MZML_CACHE, PATH)
-}
-
 #[test]
 fn tiny1_mzml0_99_0_header_sections() {
-    let mzml = mzml();
+    let mzml = mzml(&MZML_CACHE, PATH);
 
     // cvList
     let cv_list = mzml.cv_list.as_ref().expect("cvList parsed");
@@ -61,7 +57,7 @@ fn tiny1_mzml0_99_0_header_sections() {
     assert_cv(
         CV_REF_MODE,
         &sf0.cv_param,
-        "Xcalibur RAW file",
+        "Thermo RAW format",
         "MS:1000563",
         "MS",
         Some(""),
@@ -298,7 +294,7 @@ fn tiny1_mzml0_99_0_header_sections() {
 
 #[test]
 fn tiny1_mzml0_99_0_spectrum_s19() {
-    let mzml = mzml();
+    let mzml = mzml(&MZML_CACHE, PATH);
 
     // run / sourceFileRefList
     let run = &mzml.run;
@@ -333,7 +329,7 @@ fn tiny1_mzml0_99_0_spectrum_s19() {
     assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
-        "centroid mass spectrum",
+        "centroid spectrum",
         "MS:1000127",
         "MS",
         Some(""),
@@ -342,7 +338,7 @@ fn tiny1_mzml0_99_0_spectrum_s19() {
     assert_cv_f64(
         CV_REF_MODE,
         &sd.cv_params,
-        "lowest m/z value",
+        "lowest observed m/z",
         "MS:1000528",
         "MS",
         400.39,
@@ -351,7 +347,7 @@ fn tiny1_mzml0_99_0_spectrum_s19() {
     assert_cv_f64(
         CV_REF_MODE,
         &sd.cv_params,
-        "highest m/z value",
+        "highest observed m/z",
         "MS:1000527",
         "MS",
         1795.56,
@@ -398,7 +394,7 @@ fn tiny1_mzml0_99_0_spectrum_s19() {
     assert_cv_f64(
         CV_REF_MODE,
         &scan0.cv_params,
-        "scan time",
+        "scan start time",
         "MS:1000016",
         "MS",
         5.8905,
@@ -424,7 +420,7 @@ fn tiny1_mzml0_99_0_spectrum_s19() {
     assert_cv_f64(
         CV_REF_MODE,
         &win0.cv_params,
-        "scan m/z lower limit",
+        "scan window lower limit",
         "MS:1000501",
         "MS",
         400.0,
@@ -433,7 +429,7 @@ fn tiny1_mzml0_99_0_spectrum_s19() {
     assert_cv_f64(
         CV_REF_MODE,
         &win0.cv_params,
-        "scan m/z upper limit",
+        "scan window upper limit",
         "MS:1000500",
         "MS",
         1800.0,
@@ -514,7 +510,7 @@ fn tiny1_mzml0_99_0_spectrum_s19() {
 
 #[test]
 fn tiny1_mzml0_99_0_spectrum_s20() {
-    let mzml = mzml();
+    let mzml = mzml(&MZML_CACHE, PATH);
 
     // spectrumList
     let sl = mzml
@@ -544,7 +540,7 @@ fn tiny1_mzml0_99_0_spectrum_s20() {
     assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
-        "centroid mass spectrum",
+        "centroid spectrum",
         "MS:1000127",
         "MS",
         Some(""),
@@ -553,7 +549,7 @@ fn tiny1_mzml0_99_0_spectrum_s20() {
     assert_cv_f64(
         CV_REF_MODE,
         &sd.cv_params,
-        "lowest m/z value",
+        "lowest observed m/z",
         "MS:1000528",
         "MS",
         320.39,
@@ -562,7 +558,7 @@ fn tiny1_mzml0_99_0_spectrum_s20() {
     assert_cv_f64(
         CV_REF_MODE,
         &sd.cv_params,
-        "highest m/z value",
+        "highest observed m/z",
         "MS:1000527",
         "MS",
         1003.56,
@@ -653,7 +649,7 @@ fn tiny1_mzml0_99_0_spectrum_s20() {
     assert_cv_f64(
         CV_REF_MODE,
         &scan1.cv_params,
-        "scan time",
+        "scan start time",
         "MS:1000016",
         "MS",
         5.9905,
@@ -679,7 +675,7 @@ fn tiny1_mzml0_99_0_spectrum_s20() {
     assert_cv_f64(
         CV_REF_MODE,
         &win1.cv_params,
-        "scan m/z lower limit",
+        "scan window lower limit",
         "MS:1000501",
         "MS",
         110.0,
@@ -688,7 +684,7 @@ fn tiny1_mzml0_99_0_spectrum_s20() {
     assert_cv_f64(
         CV_REF_MODE,
         &win1.cv_params,
-        "scan m/z upper limit",
+        "scan window upper limit",
         "MS:1000500",
         "MS",
         905.0,

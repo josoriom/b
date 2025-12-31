@@ -4,19 +4,15 @@ use std::sync::OnceLock;
 
 use b::utilities::mzml::{MzML, Spectrum};
 
-use helpers::mzml::{
-    CvRefMode, assert_cv, assert_cv_absent, assert_cv_f64, assert_cv_ref, assert_software,
-    mzml as mzml_from_path, spectrum_description, spectrum_precursor_list, spectrum_scan_list,
+use helpers::utilities::{
+    CvRefMode, assert_cv, assert_cv_absent, assert_cv_f64, assert_cv_ref, assert_software, mzml,
+    spectrum_description, spectrum_precursor_list, spectrum_scan_list,
 };
 
 static MZML_CACHE: OnceLock<MzML> = OnceLock::new();
 
 const PATH: &str = "data/mzml/tiny2_SRM.mzML0.99.1.mzML";
 const CV_REF_MODE: CvRefMode = CvRefMode::AllowMissingMs;
-
-fn mzml() -> &'static MzML {
-    mzml_from_path(&MZML_CACHE, PATH)
-}
 
 fn spectrum_by_id<'a>(mzml: &'a MzML, id: &str) -> &'a Spectrum {
     let sl = mzml
@@ -32,7 +28,7 @@ fn spectrum_by_id<'a>(mzml: &'a MzML, id: &str) -> &'a Spectrum {
 
 #[test]
 fn tiny1_srm_mzml0_99_1_header_sections() {
-    let mzml = mzml();
+    let mzml = mzml(&MZML_CACHE, PATH);
 
     // cvList
     let cv_list = mzml.cv_list.as_ref().expect("cvList parsed");
@@ -82,7 +78,7 @@ fn tiny1_srm_mzml0_99_1_header_sections() {
     assert_cv(
         CV_REF_MODE,
         &sf0.cv_param,
-        "Xcalibur RAW file",
+        "Thermo RAW format",
         "MS:1000563",
         "MS",
         Some(""),
@@ -341,7 +337,7 @@ fn tiny1_srm_mzml0_99_1_header_sections() {
 
 #[test]
 fn tiny1_srm_mzml0_99_1_spectrum_s101() {
-    let mzml = mzml();
+    let mzml = mzml(&MZML_CACHE, PATH);
 
     // spectrumList
     let sl = mzml
@@ -430,7 +426,7 @@ fn tiny1_srm_mzml0_99_1_spectrum_s101() {
     assert_cv_f64(
         CV_REF_MODE,
         &scan0.cv_params,
-        "scan time",
+        "scan start time",
         "MS:1000016",
         "MS",
         5.8905,
@@ -457,7 +453,7 @@ fn tiny1_srm_mzml0_99_1_spectrum_s101() {
     assert_cv_f64(
         CV_REF_MODE,
         &w0.cv_params,
-        "scan m/z lower limit",
+        "scan window lower limit",
         "MS:1000501",
         "MS",
         525.12,
@@ -466,7 +462,7 @@ fn tiny1_srm_mzml0_99_1_spectrum_s101() {
     assert_cv_f64(
         CV_REF_MODE,
         &w0.cv_params,
-        "scan m/z upper limit",
+        "scan window upper limit",
         "MS:1000500",
         "MS",
         525.14,
@@ -486,7 +482,7 @@ fn tiny1_srm_mzml0_99_1_spectrum_s101() {
     assert_cv_f64(
         CV_REF_MODE,
         &w1.cv_params,
-        "scan m/z lower limit",
+        "scan window lower limit",
         "MS:1000501",
         "MS",
         672.55,
@@ -495,7 +491,7 @@ fn tiny1_srm_mzml0_99_1_spectrum_s101() {
     assert_cv_f64(
         CV_REF_MODE,
         &w1.cv_params,
-        "scan m/z upper limit",
+        "scan window upper limit",
         "MS:1000500",
         "MS",
         672.57,
@@ -583,7 +579,7 @@ fn tiny1_srm_mzml0_99_1_spectrum_s101() {
 
 #[test]
 fn tiny1_srm_mzml0_99_1_spectrum_s102() {
-    let mzml = mzml();
+    let mzml = mzml(&MZML_CACHE, PATH);
 
     let sl = mzml
         .run
@@ -676,7 +672,7 @@ fn tiny1_srm_mzml0_99_1_spectrum_s102() {
     assert_cv_f64(
         CV_REF_MODE,
         &scan0.cv_params,
-        "scan time",
+        "scan start time",
         "MS:1000016",
         "MS",
         5.9905,
@@ -701,7 +697,7 @@ fn tiny1_srm_mzml0_99_1_spectrum_s102() {
     assert_cv_f64(
         CV_REF_MODE,
         &win0.cv_params,
-        "scan m/z lower limit",
+        "scan window lower limit",
         "MS:1000501",
         "MS",
         110.0,
@@ -710,7 +706,7 @@ fn tiny1_srm_mzml0_99_1_spectrum_s102() {
     assert_cv_f64(
         CV_REF_MODE,
         &win0.cv_params,
-        "scan m/z upper limit",
+        "scan window upper limit",
         "MS:1000500",
         "MS",
         905.0,
