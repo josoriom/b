@@ -1,4 +1,4 @@
-CARGO_BIN         := b
+CARGO_BIN         := octo
 CLI_MANIFEST      := Cargo.toml
 ARTIFACTS         := artifacts
 

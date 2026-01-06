@@ -1,9 +1,9 @@
-[![CI](https://github.com/josoriom/b/actions/workflows/rust-tests.yml/badge.svg)](https://github.com/josoriom/b/actions/workflows/rust-tests.yml)
+[![CI](https://github.com/josoriom/octo/actions/workflows/rust-tests.yml/badge.svg)](https://github.com/josoriom/octo/actions/workflows/rust-tests.yml)
 
 ## Install
 
 ```bash
-cargo add b --git https://github.com/josoriom/b --branch main
+cargo add octo --git https://github.com/josoriom/octo --branch main
 ```
 
 ## Formats

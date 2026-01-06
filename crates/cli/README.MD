@@ -1,4 +1,4 @@
-# Install `b`
+# Install `octo`
 
 Pick a directory:
 
@@ -14,29 +14,29 @@ mkdir -p "$INSTALL_DIR"
 ### macOS — arm64
 
 ```bash
-curl -fL "https://raw.githubusercontent.com/josoriom/b/main/crates/cli/artifacts/macos-arm64/b" -o "$INSTALL_DIR/b"
-chmod +x "$INSTALL_DIR/b"
+curl -fL "https://raw.githubusercontent.com/josoriom/octo/main/crates/cli/artifacts/macos-arm64/octo" -o "$INSTALL_DIR/octo"
+chmod +x "$INSTALL_DIR/octo"
 ```
 
 ### macOS — x86_64
 
 ```bash
-curl -fL "https://raw.githubusercontent.com/josoriom/b/main/crates/cli/artifacts/macos-x86_64/b" -o "$INSTALL_DIR/b"
-chmod +x "$INSTALL_DIR/b"
+curl -fL "https://raw.githubusercontent.com/josoriom/octo/main/crates/cli/artifacts/macos-x86_64/octo" -o "$INSTALL_DIR/octo"
+chmod +x "$INSTALL_DIR/octo"
 ```
 
 ### Linux — x86_64
 
 ```bash
-curl -fL "https://raw.githubusercontent.com/josoriom/b/main/crates/cli/artifacts/linux-x86_64/b" -o "$INSTALL_DIR/b"
-chmod +x "$INSTALL_DIR/b"
+curl -fL "https://raw.githubusercontent.com/josoriom/octo/main/crates/cli/artifacts/linux-x86_64/octo" -o "$INSTALL_DIR/octo"
+chmod +x "$INSTALL_DIR/octo"
 ```
 
 ### Linux — arm64
 
 ```bash
-curl -fL "https://raw.githubusercontent.com/josoriom/b/main/crates/cli/artifacts/linux-arm64/b" -o "$INSTALL_DIR/b"
-chmod +x "$INSTALL_DIR/b"
+curl -fL "https://raw.githubusercontent.com/josoriom/octo/main/crates/cli/artifacts/linux-arm64/octo" -o "$INSTALL_DIR/octo"
+chmod +x "$INSTALL_DIR/octo"
 ```
 
 ---
@@ -53,7 +53,7 @@ source "$HOME/.bashrc"
 ## 3) Test
 
 ```bash
-b --help
+octo --help
 ```
 
 ## 4) [DOCS](./src/README.MD)

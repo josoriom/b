@@ -7,8 +7,8 @@ edition = "2024"
 serde = { workspace = true }
 serde_json = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
-b = { path = "../parser" }
+octo = { path = "../parser" }
 
 [[bin]]
-name = "b"
+name = "octo"
 path = "src/main.rs"
