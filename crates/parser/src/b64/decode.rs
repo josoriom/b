@@ -3,11 +3,11 @@ use std::{io::Cursor, str};
 use miniz_oxide::inflate::decompress_to_vec_zlib;
 use zstd::{bulk::decompress as zstd_decompress, stream::decode_all as zstd_decode_all};
 
-use crate::utilities::{
+use crate::mzml::{
     attr_meta::*,
     cv_table,
-    mzml::*,
     schema::{SchemaNode, SchemaTree, SchemaTree as Schema, TagId, schema},
+    structs::*,
 };
 
 const HEADER_SIZE: usize = 192;

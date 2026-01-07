@@ -4,7 +4,7 @@ use base64::engine::general_purpose::STANDARD;
 use quick_xml::Writer;
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 
-use crate::utilities::mzml::*;
+use crate::mzml::structs::*;
 
 #[derive(Default)]
 struct IndexAcc {

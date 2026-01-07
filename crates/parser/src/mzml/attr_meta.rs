@@ -1,4 +1,4 @@
-use crate::utilities::mzml::CvParam;
+use crate::mzml::structs::CvParam;
 
 pub const CV_REF_ATTR: &str = "B000";
 

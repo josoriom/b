@@ -1,30 +1,17 @@
-mod helpers;
-
 use std::sync::OnceLock;
 
-use octo::utilities::mzml::{MzML, Spectrum};
-
-use helpers::utilities::{
-    CvRefMode, assert_cv, assert_cv_f64, assert_cv_ref, parse_b, spectrum_description,
-    spectrum_precursor_list, spectrum_scan_list,
+use crate::{
+    mzml::structs::MzML,
+    utilities::test::{
+        CvRefMode, assert_cv, assert_cv_ref, parse_b, spectrum_by_id, spectrum_description,
+        spectrum_precursor_list, spectrum_scan_list,
+    },
 };
 
 static MZML_CACHE: OnceLock<MzML> = OnceLock::new();
 
 const PATH: &str = "data/b64/tiny4_LTQ-FT.mzML0.99.0.b64";
 const CV_REF_MODE: CvRefMode = CvRefMode::AllowMissingMs;
-
-fn spectrum_by_id<'a>(mzml: &'a MzML, id: &str) -> &'a Spectrum {
-    let sl = mzml
-        .run
-        .spectrum_list
-        .as_ref()
-        .expect("spectrumList parsed");
-    sl.spectra
-        .iter()
-        .find(|s| s.id == id)
-        .unwrap_or_else(|| panic!("spectrum {id} not found"))
-}
 
 #[test]
 fn tiny1_mzml0_99_0_header_sections() {
@@ -391,7 +378,7 @@ fn tiny1_mzml0_99_0_spectrum_s19() {
         Some(""),
         None,
     );
-    assert_cv_f64(
+    assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
         "lowest observed m/z",
@@ -400,7 +387,7 @@ fn tiny1_mzml0_99_0_spectrum_s19() {
         400.39,
         None,
     );
-    assert_cv_f64(
+    assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
         "highest observed m/z",
@@ -409,7 +396,7 @@ fn tiny1_mzml0_99_0_spectrum_s19() {
         1795.56,
         None,
     );
-    assert_cv_f64(
+    assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
         "base peak m/z",
@@ -418,7 +405,7 @@ fn tiny1_mzml0_99_0_spectrum_s19() {
         445.347,
         None,
     );
-    assert_cv_f64(
+    assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
         "base peak intensity",
@@ -427,7 +414,7 @@ fn tiny1_mzml0_99_0_spectrum_s19() {
         120053.0,
         None,
     );
-    assert_cv_f64(
+    assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
         "total ion current",
@@ -445,7 +432,7 @@ fn tiny1_mzml0_99_0_spectrum_s19() {
     //     scan0.instrument_configuration_ref.as_deref(),
     //     Some("LCQ Deca")
     // );
-    assert_cv_f64(
+    assert_cv(
         CV_REF_MODE,
         &scan0.cv_params,
         "scan start time",
@@ -470,7 +457,7 @@ fn tiny1_mzml0_99_0_spectrum_s19() {
         .expect("scanWindowList parsed");
     assert_eq!(swl.scan_windows.len(), 1);
     let win0 = &swl.scan_windows[0];
-    assert_cv_f64(
+    assert_cv(
         CV_REF_MODE,
         &win0.cv_params,
         "scan window lower limit",
@@ -479,7 +466,7 @@ fn tiny1_mzml0_99_0_spectrum_s19() {
         400.0,
         None,
     );
-    assert_cv_f64(
+    assert_cv(
         CV_REF_MODE,
         &win0.cv_params,
         "scan window upper limit",
@@ -582,7 +569,7 @@ fn tiny1_mzml0_99_0_spectrum_s20() {
         Some(""),
         None,
     );
-    assert_cv_f64(
+    assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
         "lowest observed m/z",
@@ -591,7 +578,7 @@ fn tiny1_mzml0_99_0_spectrum_s20() {
         320.39,
         None,
     );
-    assert_cv_f64(
+    assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
         "highest observed m/z",
@@ -600,7 +587,7 @@ fn tiny1_mzml0_99_0_spectrum_s20() {
         1003.56,
         None,
     );
-    assert_cv_f64(
+    assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
         "base peak m/z",
@@ -609,7 +596,7 @@ fn tiny1_mzml0_99_0_spectrum_s20() {
         456.347,
         None,
     );
-    assert_cv_f64(
+    assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
         "base peak intensity",
@@ -618,7 +605,7 @@ fn tiny1_mzml0_99_0_spectrum_s20() {
         23433.0,
         None,
     );
-    assert_cv_f64(
+    assert_cv(
         CV_REF_MODE,
         &sd.cv_params,
         "total ion current",
@@ -640,7 +627,7 @@ fn tiny1_mzml0_99_0_spectrum_s20() {
         .expect("selectedIonList parsed");
     assert_eq!(sil.selected_ions.len(), 1);
     let ion0 = &sil.selected_ions[0];
-    assert_cv_f64(
+    assert_cv(
         CV_REF_MODE,
         &ion0.cv_params,
         "m/z",
@@ -669,7 +656,7 @@ fn tiny1_mzml0_99_0_spectrum_s20() {
         Some(""),
         None,
     );
-    assert_cv_f64(
+    assert_cv(
         CV_REF_MODE,
         &act.cv_params,
         "collision energy",
@@ -685,7 +672,7 @@ fn tiny1_mzml0_99_0_spectrum_s20() {
     let scan0 = &scl.scans[0];
     // TODO: Fix instrument_configuration_ref parsing
     // assert_eq!(scan0.instrument_configuration_ref.as_deref(), Some("LTQ"));
-    assert_cv_f64(
+    assert_cv(
         CV_REF_MODE,
         &scan0.cv_params,
         "scan start time",
@@ -710,7 +697,7 @@ fn tiny1_mzml0_99_0_spectrum_s20() {
         .expect("scanWindowList parsed");
     assert_eq!(swl.scan_windows.len(), 1);
     let win0 = &swl.scan_windows[0];
-    assert_cv_f64(
+    assert_cv(
         CV_REF_MODE,
         &win0.cv_params,
         "scan window lower limit",
@@ -719,7 +706,7 @@ fn tiny1_mzml0_99_0_spectrum_s20() {
         110.0,
         None,
     );
-    assert_cv_f64(
+    assert_cv(
         CV_REF_MODE,
         &win0.cv_params,
         "scan window upper limit",

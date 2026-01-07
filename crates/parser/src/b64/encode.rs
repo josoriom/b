@@ -3,9 +3,15 @@ use zstd::bulk::compress as zstd_compress;
 
 use std::collections::HashMap;
 
-use crate::utilities::attr_meta::*;
-use crate::utilities::mzml::*;
-use crate::utilities::schema::TagId;
+use crate::mzml::{
+    attr_meta::*,
+    schema::TagId,
+    structs::{
+        BinaryDataArray, BinaryDataArrayList, Chromatogram, CvParam, MzML, Precursor,
+        PrecursorList, Product, ProductList, ReferenceableParamGroup, ReferenceableParamGroupRef,
+        ScanList, Spectrum,
+    },
+};
 
 #[derive(Debug)]
 pub struct PackedMeta {

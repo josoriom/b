@@ -1,12 +1,15 @@
+use core::str::FromStr;
 use std::{fs, path::PathBuf, sync::OnceLock};
 
-use octo::utilities::{
+use crate::{
     decode::decode,
     mzml::{
-        Chromatogram, ChromatogramList, CvParam, MzML, PrecursorList, Run, ScanList, Software,
-        SoftwareParam, Spectrum, SpectrumDescription,
+        parse_mzml::parse_mzml,
+        structs::{
+            Chromatogram, ChromatogramList, CvParam, MzML, PrecursorList, Run, ScanList, Software,
+            SoftwareParam, Spectrum, SpectrumDescription,
+        },
     },
-    parse_mzml::parse_mzml,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -63,12 +66,14 @@ pub fn spectrum_by_index<'a>(mzml: &'a MzML, idx: usize) -> &'a Spectrum {
         .unwrap_or_else(|| panic!("spectrum index {idx} not found"))
 }
 
+#[allow(dead_code)]
 pub fn spectrum_description(s: &Spectrum) -> &SpectrumDescription {
     s.spectrum_description
         .as_ref()
         .expect("spectrumDescription parsed")
 }
 
+#[allow(dead_code)]
 pub fn spectrum_scan_list(s: &Spectrum) -> &ScanList {
     if let Some(sd) = s.spectrum_description.as_ref() {
         if let Some(sl) = sd.scan_list.as_ref() {
@@ -78,6 +83,7 @@ pub fn spectrum_scan_list(s: &Spectrum) -> &ScanList {
     s.scan_list.as_ref().expect("scanList parsed")
 }
 
+#[allow(dead_code)]
 pub fn spectrum_precursor_list(s: &Spectrum) -> Option<&PrecursorList> {
     if let Some(sd) = s.spectrum_description.as_ref() {
         if sd.precursor_list.is_some() {
@@ -125,48 +131,58 @@ pub fn assert_cv_ref(policy: CvRefMode, got: Option<&str>, expected: &str, ctx: 
     }
 }
 
-pub fn assert_software(
-    policy: CvRefMode,
-    sw: &Software,
-    cv_ref: &str,
-    accession: &str,
-    name: &str,
-    version: Option<&str>,
-) {
-    if let Some(p) = sw.software_param.get(0) {
-        assert_software_param(policy, p, cv_ref, accession, name, version);
-        return;
+pub enum ExpectedCvValue<'a> {
+    None,
+    Str(&'a str),
+    F64(f64),
+    F32(f32),
+}
+
+impl<'a> From<&'a str> for ExpectedCvValue<'a> {
+    #[inline]
+    fn from(v: &'a str) -> Self {
+        Self::Str(v)
     }
-
-    assert_cv(policy, &sw.cv_param, name, accession, cv_ref, None, None);
-    assert_eq!(sw.version.as_deref(), version, "wrong version for {name}");
 }
 
-pub fn assert_software_param(
-    policy: CvRefMode,
-    p: &SoftwareParam,
-    cv_ref: &str,
-    accession: &str,
-    name: &str,
-    version: Option<&str>,
-) {
-    assert_cv_ref(policy, p.cv_ref.as_deref(), cv_ref, name);
-    assert_eq!(
-        p.accession.as_str(),
-        accession,
-        "wrong accession for {name}"
-    );
-    assert_eq!(p.name.as_str(), name, "wrong name for {name}");
-    assert_eq!(p.version.as_deref(), version, "wrong version for {name}");
+impl<'a> From<f64> for ExpectedCvValue<'a> {
+    #[inline]
+    fn from(v: f64) -> Self {
+        Self::F64(v)
+    }
 }
 
-pub fn assert_cv(
+impl<'a> From<f32> for ExpectedCvValue<'a> {
+    #[inline]
+    fn from(v: f32) -> Self {
+        Self::F32(v)
+    }
+}
+
+impl<'a> From<Option<&'a str>> for ExpectedCvValue<'a> {
+    #[inline]
+    fn from(v: Option<&'a str>) -> Self {
+        v.map(Self::Str).unwrap_or(Self::None)
+    }
+}
+
+#[inline]
+fn parse_required<T: FromStr>(s: &str, what: &str, name: &str) -> T
+where
+    T::Err: core::fmt::Debug,
+{
+    s.parse::<T>()
+        .unwrap_or_else(|e| panic!("wrong {what} for {name}: {s:?} ({e:?})"))
+}
+
+#[allow(dead_code)]
+pub fn assert_cv<'a>(
     policy: CvRefMode,
     cv_params: &[CvParam],
     name: &str,
     accession: &str,
     cv_ref: &str,
-    value: Option<&str>,
+    value: impl Into<ExpectedCvValue<'a>>,
     unit_name: Option<&str>,
 ) {
     let cv = cv_params
@@ -182,20 +198,40 @@ pub fn assert_cv(
 
     assert_cv_ref(policy, cv.cv_ref.as_deref(), cv_ref, name);
 
-    match value {
-        Some(v) if v.is_empty() => {
+    let got_value = cv.value.as_deref();
+
+    macro_rules! assert_num {
+        ($t:ty, $expected:expr, $eps:expr) => {{
+            let s = got_value.unwrap_or_else(|| panic!("expected value for {name}, got None"));
+            let got: $t = parse_required::<$t>(s, "value", name);
+            let expected: $t = $expected;
+            let eps: $t = $eps;
             assert!(
-                cv.value.as_deref().unwrap_or("").is_empty(),
-                "wrong value for {name}: {:?}",
-                cv.value
+                (got - expected).abs() <= eps,
+                "wrong value for {name}: got {got} expected {expected} (eps {eps})"
             );
+        }};
+    }
+
+    match value.into() {
+        ExpectedCvValue::Str(v) => {
+            if v.is_empty() {
+                assert!(
+                    got_value.unwrap_or("").is_empty(),
+                    "wrong value for {name}: {:?}",
+                    cv.value
+                );
+            } else {
+                assert_eq!(got_value, Some(v), "wrong value for {name}");
+            }
         }
-        Some(v) => assert_eq!(cv.value.as_deref(), Some(v), "wrong value for {name}"),
-        None => assert!(
-            cv.value.is_none(),
+        ExpectedCvValue::None => assert!(
+            got_value.is_none(),
             "expected no value for {name}, got {:?}",
             cv.value
         ),
+        ExpectedCvValue::F64(expected) => assert_num!(f64, expected, 1e-12_f64),
+        ExpectedCvValue::F32(expected) => assert_num!(f32, expected, 1e-6_f32),
     }
 
     match unit_name {
@@ -213,54 +249,38 @@ pub fn assert_cv(
 }
 
 #[allow(dead_code)]
-pub fn assert_cv_f64(
+pub fn assert_software(
     policy: CvRefMode,
-    cv_params: &[CvParam],
-    name: &str,
-    accession: &str,
+    sw: &Software,
     cv_ref: &str,
-    expected: f64,
-    unit_name: Option<&str>,
+    accession: &str,
+    name: &str,
+    version: Option<&str>,
 ) {
-    let cv = cv_params
-        .iter()
-        .find(|cv| cv.name == name)
-        .unwrap_or_else(|| panic!("cvParam with name {name} not found"));
+    if let Some(p) = sw.software_param.get(0) {
+        assert_software_param(policy, p, cv_ref, accession, name, version);
+        return;
+    }
 
+    assert_cv(policy, &sw.cv_param, name, accession, cv_ref, None, None);
+    assert_eq!(sw.version.as_deref(), version, "wrong version for {name}");
+}
+
+#[allow(dead_code)]
+pub fn assert_software_param(
+    policy: CvRefMode,
+    p: &SoftwareParam,
+    cv_ref: &str,
+    accession: &str,
+    name: &str,
+    version: Option<&str>,
+) {
+    assert_cv_ref(policy, p.cv_ref.as_deref(), cv_ref, name);
     assert_eq!(
-        cv.accession.as_deref(),
-        Some(accession),
+        p.accession.as_str(),
+        accession,
         "wrong accession for {name}"
     );
-
-    assert_cv_ref(policy, cv.cv_ref.as_deref(), cv_ref, name);
-
-    let s = cv
-        .value
-        .as_deref()
-        .unwrap_or_else(|| panic!("expected numeric value for {name}, got None"));
-
-    let got: f64 = s
-        .parse()
-        .unwrap_or_else(|_| panic!("failed to parse numeric value for {name}: {s:?}"));
-
-    let diff = (got - expected).abs();
-    let tol = expected.abs().max(1.0) * 1e-6;
-    assert!(
-        diff <= tol,
-        "wrong numeric value for {name}: got {got}, expected {expected} (tol {tol})"
-    );
-
-    match unit_name {
-        Some(u) => assert_eq!(
-            cv.unit_name.as_deref(),
-            Some(u),
-            "wrong unit_name for {name}"
-        ),
-        None => assert!(
-            cv.unit_name.is_none(),
-            "expected no unit_name for {name}, got {:?}",
-            cv.unit_name
-        ),
-    }
+    assert_eq!(p.name.as_str(), name, "wrong name for {name}");
+    assert_eq!(p.version.as_deref(), version, "wrong version for {name}");
 }

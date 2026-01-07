@@ -1,22 +1,21 @@
-mod helpers;
-
 use std::sync::OnceLock;
 
-use octo::utilities::mzml::MzML;
-
-use helpers::utilities::{
-    CvRefMode, assert_cv, assert_software, chromatogram, chromatogram_list, mzml,
-    spectrum_by_index, spectrum_description, spectrum_precursor_list, spectrum_scan_list,
+use crate::{
+    mzml::structs::MzML,
+    utilities::test::{
+        CvRefMode, assert_cv, parse_b, spectrum_description, spectrum_precursor_list,
+        spectrum_scan_list,
+    },
 };
 
 static MZML_CACHE: OnceLock<MzML> = OnceLock::new();
 
-const PATH: &str = "data/mzml/tiny.pwiz.mzML0.99.9.mzML";
+const PATH: &str = "data/b64/tiny.msdata.mzML0.99.10.b64";
 const CV_REF_MODE: CvRefMode = CvRefMode::Strict;
 
 #[test]
-fn tiny_msdata_mzml0_99_9_pwiz_header_sections() {
-    let mzml = mzml(&MZML_CACHE, PATH);
+fn tiny_msdata_mzml0_99_10_header_sections() {
+    let mzml = parse_b(&MZML_CACHE, PATH);
 
     // cvList
     let cv_list = mzml.cv_list.as_ref().expect("cvList parsed");
@@ -49,9 +48,10 @@ fn tiny_msdata_mzml0_99_9_pwiz_header_sections() {
     );
 
     // sourceFileList
-    assert_eq!(file_desc.source_file_list.source_file.len(), 1);
+    assert_eq!(file_desc.source_file_list.source_file.len(), 2);
+
     let sf0 = &file_desc.source_file_list.source_file[0];
-    assert_eq!(sf0.id, "SF1");
+    assert_eq!(sf0.id, "sf1");
     assert_eq!(sf0.name, "tiny1.RAW");
     assert_eq!(sf0.location, "file://F:/data/Exp01");
     assert_cv(
@@ -72,6 +72,12 @@ fn tiny_msdata_mzml0_99_9_pwiz_header_sections() {
         Some("71be39fb2700ab2f3c8b2234b91274968b6899b1"),
         None,
     );
+
+    let sf1 = &file_desc.source_file_list.source_file[1];
+    assert_eq!(sf1.id, "sf2");
+    assert_eq!(sf1.name, "parameters.par");
+    assert_eq!(sf1.location, "file:///C:/settings/");
+    assert!(sf1.cv_param.is_empty());
 
     // referenceableParamGroupList
     let rpgl = mzml
@@ -109,10 +115,10 @@ fn tiny_msdata_mzml0_99_9_pwiz_header_sections() {
     let sample_list = mzml.sample_list.as_ref().expect("sampleList parsed");
     assert_eq!(sample_list.samples.len(), 1);
     let sample0 = &sample_list.samples[0];
-    assert_eq!(sample0.id, "SP1");
+    assert_eq!(sample0.id, "sp1");
     assert_eq!(sample0.name, "Sample1");
 
-    // instrumentConfigurationList
+    // instrumentList
     let inst_list = mzml
         .instrument_list
         .as_ref()
@@ -187,35 +193,42 @@ fn tiny_msdata_mzml0_99_9_pwiz_header_sections() {
 
     let sw0 = &sw_list.software[0];
     assert_eq!(sw0.id, "Bioworks");
-    assert_software(
+    assert_eq!(sw0.cv_param.len(), 1);
+    assert_cv(
         CV_REF_MODE,
-        sw0,
-        "MS",
-        "MS:1000533",
+        &sw0.cv_param,
         "Bioworks",
-        Some("3.3.1 sp1"),
+        "MS:1000533",
+        "MS",
+        Some(""),
+        None,
     );
 
     let sw1 = &sw_list.software[1];
-    assert_eq!(sw1.id, "pwiz");
-    assert_software(
+    assert_eq!(sw1.id, "ReAdW");
+    assert_eq!(sw1.version.as_deref(), Some("1"));
+
+    assert_cv(
         CV_REF_MODE,
-        sw1,
+        &sw1.cv_param,
+        "ReAdW",
+        "MS:1000541",
         "MS",
-        "MS:1000615",
-        "ProteoWizard",
-        Some("1.0"),
+        Some(""),
+        None,
     );
 
     let sw2 = &sw_list.software[2];
     assert_eq!(sw2.id, "Xcalibur");
-    assert_software(
+    assert_eq!(sw2.version.as_deref(), Some("2.0.5"));
+    assert_cv(
         CV_REF_MODE,
-        sw2,
-        "MS",
-        "MS:1000532",
+        &sw2.cv_param,
         "Xcalibur",
-        Some("2.0.5"),
+        "MS:1000532",
+        "MS",
+        Some(""),
+        None,
     );
 
     // dataProcessingList
@@ -246,7 +259,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_header_sections() {
     }
 
     let dp1 = &dp_list.data_processing[1];
-    assert_eq!(dp1.id, "pwizconversion");
+    assert_eq!(dp1.id, "ReAdWConversion");
     assert_eq!(dp1.processing_method.len(), 1);
     let m1 = &dp1.processing_method[0];
     assert_cv(
@@ -258,26 +271,85 @@ fn tiny_msdata_mzml0_99_9_pwiz_header_sections() {
         Some(""),
         None,
     );
-}
 
-#[test]
-fn tiny_msdata_mzml0_99_9_pwiz_first_spectrum() {
-    let mzml = mzml(&MZML_CACHE, PATH);
-    let run = &mzml.run;
+    // scanSettingsList
+    let ss_list = mzml
+        .scan_settings_list
+        .as_ref()
+        .expect("scanSettingsList parsed");
+    assert_eq!(ss_list.scan_settings.len(), 1);
 
-    // sourceFileRefList
-    let sfrefl = run
+    let acq0 = &ss_list.scan_settings[0];
+    assert_eq!(acq0.id.as_deref(), Some("aS1"));
+    assert_eq!(
+        acq0.instrument_configuration_ref.as_deref(),
+        Some("LCQDeca")
+    );
+
+    let sfrefl = acq0
         .source_file_ref_list
         .as_ref()
         .expect("sourceFileRefList parsed");
     assert_eq!(sfrefl.source_file_refs.len(), 1);
-    assert_eq!(sfrefl.source_file_refs[0].r#ref, "SF1");
+    assert_eq!(sfrefl.source_file_refs[0].r#ref, "sf2");
+
+    let tl = acq0.target_list.as_ref().expect("targetList parsed");
+    assert_eq!(tl.targets.len(), 2);
+
+    let precursor_vals = ["123.456", "231.673"];
+    let fragment_vals = ["456.789", "566.328"];
+
+    for (i, t) in tl.targets.iter().enumerate() {
+        assert_cv(
+            CV_REF_MODE,
+            &t.cv_params,
+            "isolation window target m/z",
+            "MS:1000827",
+            "MS",
+            Some(precursor_vals[i]),
+            None,
+        );
+        assert_cv(
+            CV_REF_MODE,
+            &t.cv_params,
+            "product ion m/z",
+            "MS:1001225",
+            "MS",
+            Some(fragment_vals[i]),
+            None,
+        );
+        assert_cv(
+            CV_REF_MODE,
+            &t.cv_params,
+            "dwell time",
+            "MS:1000502",
+            "MS",
+            Some("1"),
+            Some("second"),
+        );
+        assert_cv(
+            CV_REF_MODE,
+            &t.cv_params,
+            "completion time",
+            "MS:1000747",
+            "MS",
+            Some("0.5"),
+            Some("second"),
+        );
+    }
+}
+
+#[test]
+fn tiny_msdata_mzml0_99_10_first_spectrum() {
+    let mzml = parse_b(&MZML_CACHE, PATH);
+    let run = &mzml.run;
 
     // spectrumList
     let sl = run.spectrum_list.as_ref().expect("spectrumList parsed");
     assert_eq!(sl.spectra.len(), 2);
+    let s0 = &sl.spectra[0];
 
-    let s0 = spectrum_by_index(mzml, 0);
+    // spectrum
     assert_eq!(s0.index, Some(0));
     assert_eq!(s0.id, "S19");
     assert_eq!(s0.cv_params.len(), 2);
@@ -300,6 +372,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_first_spectrum() {
         None,
     );
 
+    // spectrumDescription
     let sd = spectrum_description(s0);
     assert_cv(
         CV_REF_MODE,
@@ -356,11 +429,13 @@ fn tiny_msdata_mzml0_99_9_pwiz_first_spectrum() {
         None,
     );
 
+    // precursorList
     let pl = spectrum_precursor_list(s0)
         .map(|p| p.precursors.len())
         .unwrap_or(0);
     assert_eq!(pl, 0);
 
+    // scan
     let scl = spectrum_scan_list(s0);
     assert_eq!(scl.scans.len(), 1);
     let scan0 = &scl.scans[0];
@@ -382,16 +457,8 @@ fn tiny_msdata_mzml0_99_9_pwiz_first_spectrum() {
         Some("+ c NSI Full ms [ 400.00-1800.00]"),
         None,
     );
-    assert_cv(
-        CV_REF_MODE,
-        &scan0.cv_params,
-        "preset scan configuration",
-        "MS:1000616",
-        "MS",
-        Some("3"),
-        None,
-    );
 
+    // scanWindowList
     let swl = scan0
         .scan_window_list
         .as_ref()
@@ -417,15 +484,16 @@ fn tiny_msdata_mzml0_99_9_pwiz_first_spectrum() {
         None,
     );
 
+    // binaryDataArrayList
     let bal = s0
         .binary_data_array_list
         .as_ref()
         .expect("binaryDataArrayList parsed");
     assert_eq!(bal.binary_data_arrays.len(), 2);
 
-    for (i, name, accession, enc_len) in [
-        (0usize, "m/z array", "MS:1000514", Some(160usize)),
-        (1usize, "intensity array", "MS:1000515", Some(160usize)),
+    for (i, name, accession) in [
+        (0usize, "m/z array", "MS:1000514"),
+        (1usize, "intensity array", "MS:1000515"),
     ] {
         let ba = &bal.binary_data_arrays[i];
         assert_eq!(ba.cv_params.len(), 3);
@@ -456,21 +524,20 @@ fn tiny_msdata_mzml0_99_9_pwiz_first_spectrum() {
             Some(""),
             None,
         );
-        assert_eq!(ba.array_length, None);
-        assert_eq!(ba.encoded_length, enc_len);
     }
 }
 
 #[test]
-fn tiny_msdata_mzml0_99_9_pwiz_second_spectrum() {
-    let mzml = mzml(&MZML_CACHE, PATH);
+fn tiny_msdata_mzml0_99_10_second_spectrum() {
+    let mzml = parse_b(&MZML_CACHE, PATH);
     let run = &mzml.run;
 
+    // spectrumList
     let sl = run.spectrum_list.as_ref().expect("spectrumList parsed");
     assert_eq!(sl.spectra.len(), 2);
+    let s1 = &sl.spectra[1];
 
-    let s1 = spectrum_by_index(mzml, 1);
-
+    // spectrum
     assert_eq!(s1.index, Some(1));
     assert_eq!(s1.id, "S20");
     assert_eq!(s1.cv_params.len(), 2);
@@ -493,6 +560,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_second_spectrum() {
         None,
     );
 
+    // spectrumDescription
     let sd = spectrum_description(s1);
     assert_cv(
         CV_REF_MODE,
@@ -549,18 +617,53 @@ fn tiny_msdata_mzml0_99_9_pwiz_second_spectrum() {
         None,
     );
 
+    // precursorList
     let pl = spectrum_precursor_list(s1).expect("precursorList parsed");
     assert_eq!(pl.precursors.len(), 1);
-
     let p0 = &pl.precursors[0];
     assert_eq!(p0.spectrum_ref.as_deref(), Some("S19"));
 
+    // isolationWindow
+    let iw = p0
+        .isolation_window
+        .as_ref()
+        .expect("isolationWindow parsed");
+    assert_cv(
+        CV_REF_MODE,
+        &iw.cv_params,
+        "isolation window target m/z",
+        "MS:1000827",
+        "MS",
+        Some("445.34"),
+        None,
+    );
+    assert_cv(
+        CV_REF_MODE,
+        &iw.cv_params,
+        "isolation window lower offset",
+        "MS:1000828",
+        "MS",
+        Some("2"),
+        None,
+    );
+    assert_cv(
+        CV_REF_MODE,
+        &iw.cv_params,
+        "isolation window upper offset",
+        "MS:1000829",
+        "MS",
+        Some("2"),
+        None,
+    );
+
+    // selectedIonList
     let sil = p0
         .selected_ion_list
         .as_ref()
         .expect("selectedIonList parsed");
     assert_eq!(sil.selected_ions.len(), 1);
     let ion0 = &sil.selected_ions[0];
+    assert_eq!(ion0.cv_params.len(), 2);
     assert_cv(
         CV_REF_MODE,
         &ion0.cv_params,
@@ -573,15 +676,6 @@ fn tiny_msdata_mzml0_99_9_pwiz_second_spectrum() {
     assert_cv(
         CV_REF_MODE,
         &ion0.cv_params,
-        "intensity",
-        "MS:1000042",
-        "MS",
-        Some("120053"),
-        None,
-    );
-    assert_cv(
-        CV_REF_MODE,
-        &ion0.cv_params,
         "charge state",
         "MS:1000041",
         "MS",
@@ -589,6 +683,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_second_spectrum() {
         None,
     );
 
+    // activation
     let act = p0.activation.as_ref().expect("activation parsed");
     assert_cv(
         CV_REF_MODE,
@@ -609,6 +704,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_second_spectrum() {
         Some("electron volt"),
     );
 
+    // scan
     let scl = spectrum_scan_list(s1);
     assert_eq!(scl.scans.len(), 1);
     let scan1 = &scl.scans[0];
@@ -630,16 +726,8 @@ fn tiny_msdata_mzml0_99_9_pwiz_second_spectrum() {
         Some("+ c d Full ms2  445.35@cid35.00 [ 110.00-905.00]"),
         None,
     );
-    assert_cv(
-        CV_REF_MODE,
-        &scan1.cv_params,
-        "preset scan configuration",
-        "MS:1000616",
-        "MS",
-        Some("4"),
-        None,
-    );
 
+    // scanWindowList
     let swl = scan1
         .scan_window_list
         .as_ref()
@@ -665,15 +753,28 @@ fn tiny_msdata_mzml0_99_9_pwiz_second_spectrum() {
         None,
     );
 
+    // binaryDataArrayList
     let bal = s1
         .binary_data_array_list
         .as_ref()
         .expect("binaryDataArrayList parsed");
     assert_eq!(bal.binary_data_arrays.len(), 2);
 
-    for (i, name, accession) in [
-        (0usize, "m/z array", "MS:1000514"),
-        (1usize, "intensity array", "MS:1000515"),
+    for (i, name, accession, expect_len, expect_enc) in [
+        (
+            0usize,
+            "m/z array",
+            "MS:1000514",
+            Some(20usize),
+            Some(216usize),
+        ),
+        (
+            1usize,
+            "intensity array",
+            "MS:1000515",
+            Some(20usize),
+            Some(216usize),
+        ),
     ] {
         let ba = &bal.binary_data_arrays[i];
         assert_eq!(ba.cv_params.len(), 3);
@@ -704,126 +805,7 @@ fn tiny_msdata_mzml0_99_9_pwiz_second_spectrum() {
             Some(""),
             None,
         );
-        assert_eq!(ba.array_length, None);
-        assert_eq!(ba.encoded_length, Some(108usize));
-    }
-}
-
-#[test]
-fn tiny_msdata_mzml0_99_9_pwiz_chromatograms() {
-    let mzml = mzml(&MZML_CACHE, PATH);
-    let run = &mzml.run;
-
-    let cl = chromatogram_list(run);
-    assert_eq!(cl.chromatograms.len(), 2);
-
-    let tic = chromatogram(cl, "tic");
-    assert_eq!(tic.index, Some(0));
-    assert_eq!(tic.native_id.as_deref(), Some("tic native"));
-    assert_cv(
-        CV_REF_MODE,
-        &tic.cv_params,
-        "total ion chromatogram ?",
-        "MS:1000235",
-        "MS",
-        Some(""),
-        None,
-    );
-
-    let tic_bal = tic
-        .binary_data_array_list
-        .as_ref()
-        .expect("tic binaryDataArrayList parsed");
-    assert_eq!(tic_bal.binary_data_arrays.len(), 2);
-
-    for (i, name, accession, expect_enc) in [
-        (0usize, "time array", "MS:1000595", Some(160usize)),
-        (1usize, "intensity array", "MS:1000515", Some(160usize)),
-    ] {
-        let ba = &tic_bal.binary_data_arrays[i];
-        assert_cv(
-            CV_REF_MODE,
-            &ba.cv_params,
-            "64-bit float",
-            "MS:1000523",
-            "MS",
-            Some(""),
-            None,
-        );
-        assert_cv(
-            CV_REF_MODE,
-            &ba.cv_params,
-            "no compression",
-            "MS:1000576",
-            "MS",
-            Some(""),
-            None,
-        );
-        assert_cv(
-            CV_REF_MODE,
-            &ba.cv_params,
-            name,
-            accession,
-            "MS",
-            Some(""),
-            None,
-        );
-        assert_eq!(ba.array_length, None);
-        assert_eq!(ba.encoded_length, expect_enc);
-    }
-
-    let sic = chromatogram(cl, "sic");
-    assert_eq!(sic.index, Some(1));
-    assert_eq!(sic.native_id.as_deref(), Some("sic native"));
-    assert_cv(
-        CV_REF_MODE,
-        &sic.cv_params,
-        "total ion chromatogram ?",
-        "MS:1000235",
-        "MS",
-        Some(""),
-        None,
-    );
-
-    let sic_bal = sic
-        .binary_data_array_list
-        .as_ref()
-        .expect("sic binaryDataArrayList parsed");
-    assert_eq!(sic_bal.binary_data_arrays.len(), 2);
-
-    for (i, name, accession, expect_enc) in [
-        (0usize, "time array", "MS:1000595", Some(108usize)),
-        (1usize, "intensity array", "MS:1000515", Some(108usize)),
-    ] {
-        let ba = &sic_bal.binary_data_arrays[i];
-        assert_cv(
-            CV_REF_MODE,
-            &ba.cv_params,
-            "64-bit float",
-            "MS:1000523",
-            "MS",
-            Some(""),
-            None,
-        );
-        assert_cv(
-            CV_REF_MODE,
-            &ba.cv_params,
-            "no compression",
-            "MS:1000576",
-            "MS",
-            Some(""),
-            None,
-        );
-        assert_cv(
-            CV_REF_MODE,
-            &ba.cv_params,
-            name,
-            accession,
-            "MS",
-            Some(""),
-            None,
-        );
-        assert_eq!(ba.array_length, None);
+        assert_eq!(ba.array_length, expect_len);
         assert_eq!(ba.encoded_length, expect_enc);
     }
 }

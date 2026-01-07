@@ -1,2 +1,5 @@
-pub mod utilities;
-pub use utilities::{decode, encode, mzml::*, parse_mzml};
+pub mod mzml;
+pub use mzml::{parse_mzml, structs::*};
+pub mod b64;
+pub use b64::{decode, encode};
+mod utilities;

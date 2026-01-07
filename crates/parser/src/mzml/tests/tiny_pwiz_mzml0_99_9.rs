@@ -1,21 +1,20 @@
-mod helpers;
-
 use std::sync::OnceLock;
 
-use octo::utilities::mzml::MzML;
-
-use helpers::utilities::{
-    CvRefMode, assert_cv, assert_software, chromatogram, chromatogram_list, mzml,
-    spectrum_by_index, spectrum_description, spectrum_precursor_list, spectrum_scan_list,
+use crate::{
+    mzml::structs::MzML,
+    utilities::test::{
+        CvRefMode, assert_cv, assert_software, chromatogram, chromatogram_list, mzml,
+        spectrum_by_index, spectrum_description, spectrum_precursor_list, spectrum_scan_list,
+    },
 };
 
 static MZML_CACHE: OnceLock<MzML> = OnceLock::new();
 
-const PATH: &str = "data/mzml/tiny.pwiz.mzML0.99.10.mzML";
+const PATH: &str = "data/mzml/tiny.pwiz.mzML0.99.9.mzML";
 const CV_REF_MODE: CvRefMode = CvRefMode::Strict;
 
 #[test]
-fn tiny_msdata_mzml0_99_10_pwiz_header_sections() {
+fn tiny_msdata_mzml0_99_9_pwiz_header_sections() {
     let mzml = mzml(&MZML_CACHE, PATH);
 
     // cvList
@@ -261,7 +260,7 @@ fn tiny_msdata_mzml0_99_10_pwiz_header_sections() {
 }
 
 #[test]
-fn tiny_msdata_mzml0_99_10_pwiz_first_spectrum() {
+fn tiny_msdata_mzml0_99_9_pwiz_first_spectrum() {
     let mzml = mzml(&MZML_CACHE, PATH);
     let run = &mzml.run;
 
@@ -462,7 +461,7 @@ fn tiny_msdata_mzml0_99_10_pwiz_first_spectrum() {
 }
 
 #[test]
-fn tiny_msdata_mzml0_99_10_pwiz_second_spectrum() {
+fn tiny_msdata_mzml0_99_9_pwiz_second_spectrum() {
     let mzml = mzml(&MZML_CACHE, PATH);
     let run = &mzml.run;
 
@@ -710,7 +709,7 @@ fn tiny_msdata_mzml0_99_10_pwiz_second_spectrum() {
 }
 
 #[test]
-fn tiny_msdata_mzml0_99_10_pwiz_chromatograms() {
+fn tiny_msdata_mzml0_99_9_pwiz_chromatograms() {
     let mzml = mzml(&MZML_CACHE, PATH);
     let run = &mzml.run;
 

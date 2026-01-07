@@ -6,7 +6,7 @@ use quick_xml::events::{BytesStart, Event};
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead, Cursor};
 
-use crate::utilities::mzml::*;
+use crate::mzml::structs::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CvEntry {
