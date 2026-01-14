@@ -73,10 +73,13 @@ fn parse_referenceable_param_group_ref(start: &BytesStart) -> ReferenceableParam
 }
 
 fn parse_cv_param(start: &BytesStart) -> CvParam {
+    let accession = get_attr(start, b"accession");
+    let name = get_attr(start, b"name").unwrap_or_default();
+
     CvParam {
         cv_ref: get_attr_any(start, &[b"cvRef", b"cvLabel"]),
-        accession: get_attr(start, b"accession"),
-        name: get_attr(start, b"name").unwrap_or_default(),
+        accession,
+        name,
         value: get_attr(start, b"value"),
         unit_cv_ref: get_attr_any(start, &[b"unitCvRef", b"unitCvLabel"]),
         unit_name: get_attr(start, b"unitName"),
@@ -205,9 +208,15 @@ fn push_params_start<R: BufRead>(
 }
 
 fn maybe_set_ms_level(spectrum: &mut Spectrum, p: &CvParam) {
-    if spectrum.ms_level.is_some() || p.name != "ms level" {
+    if spectrum.ms_level.is_some() {
         return;
     }
+
+    let is_ms_level = matches!(p.accession.as_deref(), Some("MS:1000511"));
+    if !is_ms_level {
+        return;
+    }
+
     let Some(v) = p.value.as_deref() else { return };
     let Ok(n) = v.parse::<u32>() else { return };
     spectrum.ms_level = Some(n);

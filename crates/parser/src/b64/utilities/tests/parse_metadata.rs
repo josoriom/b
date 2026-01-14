@@ -1,6 +1,9 @@
 use std::{fs, path::PathBuf};
 
-use crate::b64::decode2::{Metadatum, MetadatumValue, parse_header, parse_metadata};
+use crate::b64::{
+    decode2::{Metadatum, MetadatumValue},
+    utilities::{parse_header, parse_metadata},
+};
 use crate::mzml::{attr_meta::*, schema::TagId};
 
 const PATH: &str = "data/b64/test.b64";
@@ -77,13 +80,12 @@ fn check_first_spectrum() {
         header.spec_num_count,
         header.spec_str_count,
         4,
-        42,
+        54,
         "spectra",
     );
-    println!("---:::>>{:#?}", spec_meta);
-    assert_eq!(item_meta_count(&spec_meta, 0), 17);
+    println!("---::>>{:#?}", spec_meta);
 
-    // Spectrum
+    assert_eq!(item_meta_count(&spec_meta, 0), 24);
     expect_text_one(
         &spec_meta,
         0,
@@ -173,6 +175,18 @@ fn check_first_spectrum() {
         0,
     );
 
+    // ScanList
+    expect_number_one(
+        &spec_meta,
+        0,
+        TagId::ScanList,
+        CV_CODE_B000,
+        ACC_ATTR_COUNT,
+        CV_CODE_UNKNOWN,
+        0,
+        1.0,
+    );
+
     // Scan
     expect_number_one(
         &spec_meta,
@@ -205,6 +219,18 @@ fn check_first_spectrum() {
         CV_CODE_MS,
         1000040,
         1000.0,
+    );
+
+    // BinaryDataArrayList
+    expect_number_one(
+        &spec_meta,
+        0,
+        TagId::BinaryDataArrayList,
+        CV_CODE_B000,
+        ACC_ATTR_COUNT,
+        CV_CODE_UNKNOWN,
+        0,
+        2.0,
     );
 
     // BinaryDataArray
@@ -269,12 +295,12 @@ fn check_second_spectrum() {
         header.spec_num_count,
         header.spec_str_count,
         4,
-        42,
+        54,
         "spectra",
     );
-    assert_eq!(item_meta_count(&spec_meta, 1), 24);
 
-    // Spectrum
+    assert_eq!(item_meta_count(&spec_meta, 1), 30);
+
     expect_text_one(
         &spec_meta,
         1,
@@ -364,7 +390,6 @@ fn check_second_spectrum() {
         0,
     );
 
-    // Scan
     expect_number_one(
         &spec_meta,
         1,
@@ -398,6 +423,17 @@ fn check_second_spectrum() {
         1000.0,
     );
 
+    // PrecursorList
+    expect_number_one(
+        &spec_meta,
+        1,
+        TagId::PrecursorList,
+        CV_CODE_B000,
+        ACC_ATTR_COUNT,
+        CV_CODE_UNKNOWN,
+        0,
+        1.0,
+    );
     // IsolationWindow
     expect_number_one(
         &spec_meta,
@@ -429,7 +465,17 @@ fn check_second_spectrum() {
         1000040,
         485.0,
     );
-
+    // SelectedIonList
+    expect_number_one(
+        &spec_meta,
+        1,
+        TagId::SelectedIonList,
+        CV_CODE_B000,
+        ACC_ATTR_COUNT,
+        CV_CODE_UNKNOWN,
+        0,
+        1.0,
+    );
     // SelectedIon
     expect_number_one(
         &spec_meta,
@@ -583,58 +629,6 @@ fn assert_chromatogram_binary_data_array_list(meta: &[Metadatum], item_index: u3
     );
 }
 
-fn assert_chromatogram_item(
-    meta: &[Metadatum],
-    item_index: u32,
-    id: &str,
-    index: f64,
-    chrom_cv_accession_tail: u32,
-) {
-    // Chromatogram
-    expect_text_one(
-        meta,
-        item_index,
-        TagId::Chromatogram,
-        CV_CODE_B000,
-        ACC_ATTR_ID,
-        CV_CODE_UNKNOWN,
-        0,
-        id,
-    );
-    expect_number_one(
-        meta,
-        item_index,
-        TagId::Chromatogram,
-        CV_CODE_B000,
-        ACC_ATTR_INDEX,
-        CV_CODE_UNKNOWN,
-        0,
-        index,
-    );
-    expect_number_one(
-        meta,
-        item_index,
-        TagId::Chromatogram,
-        CV_CODE_B000,
-        ACC_ATTR_DEFAULT_ARRAY_LENGTH,
-        CV_CODE_UNKNOWN,
-        0,
-        3476.0,
-    );
-
-    expect_empty_one(
-        meta,
-        item_index,
-        TagId::Chromatogram,
-        CV_CODE_MS,
-        chrom_cv_accession_tail,
-        CV_CODE_UNKNOWN,
-        0,
-    );
-
-    assert_chromatogram_binary_data_array_list(meta, item_index);
-}
-
 #[test]
 fn check_first_chromatogram() {
     let header_bytes = read_bytes(PATH);
@@ -648,13 +642,55 @@ fn check_first_chromatogram() {
         header.chrom_num_count,
         header.chrom_str_count,
         5,
-        26,
+        38,
         "chromatograms",
     );
-    assert_eq!(chrom_meta.len(), 26);
-    assert_eq!(item_meta_count(&chrom_meta, 0), 13);
+    assert_eq!(chrom_meta.len(), 38);
+    assert_eq!(item_meta_count(&chrom_meta, 0), 20);
 
-    assert_chromatogram_item(&chrom_meta, 0, "TIC", 0.0, 1000235);
+    // Chromatogram
+    expect_text_one(
+        &chrom_meta,
+        0,
+        TagId::Chromatogram,
+        CV_CODE_B000,
+        ACC_ATTR_ID,
+        CV_CODE_UNKNOWN,
+        0,
+        "TIC",
+    );
+    expect_number_one(
+        &chrom_meta,
+        0,
+        TagId::Chromatogram,
+        CV_CODE_B000,
+        ACC_ATTR_INDEX,
+        CV_CODE_UNKNOWN,
+        0,
+        0.0,
+    );
+    expect_number_one(
+        &chrom_meta,
+        0,
+        TagId::Chromatogram,
+        CV_CODE_B000,
+        ACC_ATTR_DEFAULT_ARRAY_LENGTH,
+        CV_CODE_UNKNOWN,
+        0,
+        3476.0,
+    );
+
+    expect_empty_one(
+        &chrom_meta,
+        0,
+        TagId::Chromatogram,
+        CV_CODE_MS,
+        1000235,
+        CV_CODE_UNKNOWN,
+        0,
+    );
+
+    assert_chromatogram_binary_data_array_list(&chrom_meta, 0);
 }
 
 #[test]
@@ -670,13 +706,55 @@ fn check_second_chromatogram() {
         header.chrom_num_count,
         header.chrom_str_count,
         5,
-        26,
+        38,
         "chromatograms",
     );
-    assert_eq!(chrom_meta.len(), 26);
-    assert_eq!(item_meta_count(&chrom_meta, 1), 13);
+    assert_eq!(chrom_meta.len(), 38);
+    assert_eq!(item_meta_count(&chrom_meta, 1), 18);
 
-    assert_chromatogram_item(&chrom_meta, 1, "BPC", 1.0, 1000628);
+    // Chromatogram
+    expect_text_one(
+        &chrom_meta,
+        1,
+        TagId::Chromatogram,
+        CV_CODE_B000,
+        ACC_ATTR_ID,
+        CV_CODE_UNKNOWN,
+        0,
+        "BPC",
+    );
+    expect_number_one(
+        &chrom_meta,
+        1,
+        TagId::Chromatogram,
+        CV_CODE_B000,
+        ACC_ATTR_INDEX,
+        CV_CODE_UNKNOWN,
+        0,
+        1.0,
+    );
+    expect_number_one(
+        &chrom_meta,
+        1,
+        TagId::Chromatogram,
+        CV_CODE_B000,
+        ACC_ATTR_DEFAULT_ARRAY_LENGTH,
+        CV_CODE_UNKNOWN,
+        0,
+        3476.0,
+    );
+
+    expect_empty_one(
+        &chrom_meta,
+        1,
+        TagId::Chromatogram,
+        CV_CODE_MS,
+        1000628,
+        CV_CODE_UNKNOWN,
+        0,
+    );
+
+    assert_chromatogram_binary_data_array_list(&chrom_meta, 1);
 }
 
 fn item_meta_count(meta: &[Metadatum], item_index: u32) -> usize {

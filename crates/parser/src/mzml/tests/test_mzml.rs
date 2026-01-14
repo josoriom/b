@@ -14,6 +14,14 @@ const CV_REF_MODE: CvRefMode = CvRefMode::Strict;
 fn anpc_mzml1_1_0_header_sections() {
     let mzml = mzml(&MZML_CACHE, PATH);
 
+    println!(
+        "mzML spectrumList defaultDataProcessingRef = {:?}",
+        mzml.run
+            .spectrum_list
+            .as_ref()
+            .and_then(|sl| sl.default_data_processing_ref.as_deref())
+    );
+
     // ----------------------------
     // cvList
     // ----------------------------

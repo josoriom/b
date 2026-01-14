@@ -6,6 +6,7 @@ pub mod encode2;
 pub use encode2::encode2;
 pub mod encode;
 pub use encode::encode;
+pub mod utilities;
 
 #[cfg(test)]
 mod tests;

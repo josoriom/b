@@ -1018,6 +1018,7 @@ fn infer_precursor_list_from_spectrum_cv(
     infer_precursor_from_cv(schema, schema_nodes, params).map(|p| PrecursorList {
         count: Some(1),
         precursors: vec![p],
+        ..Default::default()
     })
 }
 
@@ -1106,6 +1107,7 @@ fn infer_spectrum_description_from_spectrum_cv(
         scan_list: scan_obj.map(|s| ScanList {
             count: Some(1),
             scans: vec![s],
+            ..Default::default()
         }),
         ..Default::default()
     })

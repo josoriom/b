@@ -1,6 +1,6 @@
 use std::{fs, path::PathBuf};
 
-use crate::b64::decode2::parse_header;
+use crate::b64::utilities::parse_header;
 
 const PATH: &str = "data/b64/test.b64";
 
@@ -13,6 +13,7 @@ fn read_bytes(path: &str) -> Vec<u8> {
 fn check_header() {
     let bytes = read_bytes(PATH);
     let header = parse_header(&bytes).expect("parse_header failed");
+    println!("----::>> {:#?}", header);
 
     assert_eq!(header.file_signature, *b"B000");
     assert_eq!(header.endianness_flag, 0);
@@ -21,28 +22,28 @@ fn check_header() {
     assert_eq!(header.off_spec_index, 192);
     assert_eq!(header.off_chrom_index, 256);
     assert_eq!(header.off_spec_meta, 320);
-    assert_eq!(header.off_chrom_meta, 648);
-    assert_eq!(header.off_global_meta, 824);
+    assert_eq!(header.off_chrom_meta, 832);
+    assert_eq!(header.off_global_meta, 1136);
 
     assert_eq!(header.size_container_spect_x, 67);
-    assert_eq!(header.off_container_spect_x, 1592);
+    assert_eq!(header.off_container_spect_x, 1952);
     assert_eq!(header.size_container_spect_y, 76);
-    assert_eq!(header.off_container_spect_y, 1664);
+    assert_eq!(header.off_container_spect_y, 2024);
     assert_eq!(header.size_container_chrom_x, 67);
-    assert_eq!(header.off_container_chrom_x, 1744);
+    assert_eq!(header.off_container_chrom_x, 2104);
     assert_eq!(header.size_container_chrom_y, 76);
-    assert_eq!(header.off_container_chrom_y, 1816);
+    assert_eq!(header.off_container_chrom_y, 2176);
 
     assert_eq!(header.spectrum_count, 2);
     assert_eq!(header.chrom_count, 2);
 
-    assert_eq!(header.spec_meta_count, 42);
-    assert_eq!(header.spec_num_count, 21);
-    assert_eq!(header.spec_str_count, 2);
+    assert_eq!(header.spec_meta_count, 54);
+    assert_eq!(header.spec_num_count, 32);
+    assert_eq!(header.spec_str_count, 3);
 
-    assert_eq!(header.chrom_meta_count, 26);
-    assert_eq!(header.chrom_num_count, 4);
-    assert_eq!(header.chrom_str_count, 4);
+    assert_eq!(header.chrom_meta_count, 38);
+    assert_eq!(header.chrom_num_count, 15);
+    assert_eq!(header.chrom_str_count, 5);
 
     assert_eq!(header.global_meta_count, 47);
     assert_eq!(header.global_num_count, 6);

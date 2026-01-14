@@ -1,17 +1,34 @@
-use std::{
-    collections::{HashMap, HashSet},
-    io::Read,
+use std::collections::{HashMap, HashSet};
+
+use crate::{
+    b64::utilities::{
+        Header, common::*, parse_binary_data_array_list, parse_chromatogram_list,
+        parse_cv_and_user_params, parse_header, parse_metadata, parse_precursor_list,
+        parse_product_list, parse_scan_list, parse_spectrum_list,
+    },
+    mzml::{
+        attr_meta::*,
+        cv_table,
+        schema::{SchemaTree as Schema, TagId, schema},
+        structs::*,
+    },
 };
 
-use crate::mzml::{
-    attr_meta::format_accession,
-    cv_table,
-    schema::{SchemaNode, SchemaTree as Schema, TagId, schema},
-    structs::*,
-};
+const INDEX_ENTRY_SIZE: usize = 32;
+const BLOCK_DIR_ENTRY_SIZE: usize = 32;
 
-const HDR_CODEC_MASK: u8 = 0x0F;
-const HDR_CODEC_ZSTD: u8 = 1;
+const HDR_FLAG_SPEC_META_COMP: u8 = 1 << 4;
+const HDR_FLAG_CHROM_META_COMP: u8 = 1 << 5;
+
+const ARRAY_FILTER_NONE: u8 = 0;
+const ARRAY_FILTER_BYTE_SHUFFLE: u8 = 1;
+
+const ACC_MZ_ARRAY: u32 = 1_000_514;
+const ACC_INTENSITY_ARRAY: u32 = 1_000_515;
+const ACC_TIME_ARRAY: u32 = 1_000_595;
+
+const ACC_32BIT_FLOAT: u32 = 1_000_521;
+const ACC_64BIT_FLOAT: u32 = 1_000_523;
 
 pub fn decode2(bytes: &[u8]) -> Result<MzML, String> {
     let schema = schema();
@@ -25,299 +42,495 @@ pub fn decode2(bytes: &[u8]) -> Result<MzML, String> {
         software_list: parse_software_list(schema, bytes),
         data_processing_list: parse_data_processing_list(schema, bytes),
         scan_settings_list: parse_scan_settings_list(schema, bytes),
-        run: parse_run(schema, bytes, &header),
+        run: parse_run(schema, bytes, &header)?,
     })
-}
-
-#[inline]
-fn child_node<'a>(parent: Option<&'a SchemaNode>, tag: TagId) -> Option<&'a SchemaNode> {
-    let p = parent?;
-    let key = p.child_key_for_tag(tag)?;
-    p.children.get(key)
 }
 
 /// <run>
 #[inline]
-fn parse_run(schema: &Schema, bytes: &[u8], header: &Header) -> Run {
-    Run {
-        spectrum_list: parse_spectrum_list(schema, bytes, header),
-        chromatogram_list: parse_chromatogram_list(schema, bytes),
+fn parse_run(schema: &Schema, bytes: &[u8], header: &Header) -> Result<Run, String> {
+    let metadata = parse_metadata_section(
+        bytes,
+        header.off_spec_meta,
+        header.off_chrom_meta,
+        header.spectrum_count,
+        2,
+        header.spec_meta_count,
+        header.spec_num_count,
+        header.spec_str_count,
+        4,
+        42,
+        "spectra",
+    );
+
+    let spec_child_index = ChildIndex::new(&metadata);
+
+    Ok(Run {
+        spectrum_list: parse_spectrum_list(schema, &metadata, &spec_child_index),
+        chromatogram_list: parse_chromatogram_list(schema, &metadata, &spec_child_index),
         ..Default::default()
-    }
-}
-
-/// <spectrumList>
-#[inline]
-fn parse_spectrum_list(schema: &Schema, bytes: &[u8], header: &Header) -> Option<SpectrumList> {
-    let root_node = schema.root_by_tag(TagId::SpectrumList)?;
-    let spectrum_node = child_node(Some(root_node), TagId::Spectrum);
-    let _ = (root_node, spectrum_node, bytes);
-
-    Some(SpectrumList {
-        count: Some(0),
-        default_data_processing_ref: None,
-        spectra: Vec::new(),
     })
 }
 
-/// <chromatogramList>
-#[inline]
-fn parse_chromatogram_list(schema: &Schema, bytes: &[u8]) -> Option<ChromatogramList> {
-    let root_node = schema.root_by_tag(TagId::ChromatogramList)?;
-    let chromatogram_node = child_node(Some(root_node), TagId::Chromatogram);
-    let _ = (root_node, chromatogram_node, bytes);
-
-    Some(ChromatogramList {
-        count: Some(0),
-        default_data_processing_ref: None,
-        chromatograms: Vec::new(),
-    })
+#[derive(Clone, Copy, Debug)]
+struct SpectrumIndexEntry {
+    mz_element_off: u64,
+    inten_element_off: u64,
+    mz_element_len: u32,
+    inten_element_len: u32,
+    mz_block_id: u32,
+    inten_block_id: u32,
 }
 
-/// <spectrum>
-#[inline]
-fn decode_spectrum(schema: &Schema, bytes: &[u8], metadata: &Vec<Metadatum>) -> Spectrum {
-    let spectrum_node = schema.root_by_tag(TagId::Spectrum);
-    let _ = (spectrum_node, bytes);
+#[derive(Clone, Copy, Debug)]
+struct ChromIndexEntry {
+    time_element_off: u64,
+    inten_element_off: u64,
+    time_element_len: u32,
+    inten_element_len: u32,
+    time_block_id: u32,
+    inten_block_id: u32,
+}
 
-    Spectrum {
-        id: String::new(),
-        index: None,
-        scan_number: None,
-        default_array_length: None,
-        native_id: None,
-        data_processing_ref: None,
-        source_file_ref: None,
-        spot_id: None,
-        ms_level: None,
-        referenceable_param_group_refs: Vec::new(),
-        cv_params: Vec::new(),
-        user_params: Vec::new(),
-        spectrum_description: None,
-        scan_list: None,
-        precursor_list: None,
-        product_list: None,
-        binary_data_array_list: None,
+#[inline]
+fn slice_at<'a>(
+    bytes: &'a [u8],
+    off: u64,
+    len: u64,
+    field: &'static str,
+) -> Result<&'a [u8], String> {
+    let off = usize::try_from(off).map_err(|_| format!("{field}: offset overflow"))?;
+    let len = usize::try_from(len).map_err(|_| format!("{field}: len overflow"))?;
+    let end = off
+        .checked_add(len)
+        .ok_or_else(|| format!("{field}: range overflow"))?;
+    if end > bytes.len() {
+        return Err(format!(
+            "{field}: out of range (off={off}, len={len}, file_len={})",
+            bytes.len()
+        ));
     }
+    Ok(&bytes[off..end])
 }
 
-/// <chromatogram>
 #[inline]
-fn decode_chromatogram(schema: &Schema, bytes: &[u8], header: &Header) -> Chromatogram {
-    let chromatogram_node = schema.root_by_tag(TagId::Chromatogram);
-    let _ = (chromatogram_node, bytes);
+fn read_u32_le_at(bytes: &[u8], pos: &mut usize, field: &'static str) -> Result<u32, String> {
+    let s = take(bytes, pos, 4, field)?;
+    Ok(u32::from_le_bytes(s.try_into().unwrap()))
+}
 
-    Chromatogram {
-        id: String::new(),
-        native_id: None,
-        index: None,
-        default_array_length: None,
-        data_processing_ref: None,
-        referenceable_param_group_refs: Vec::new(),
-        cv_params: Vec::new(),
-        user_params: Vec::new(),
-        precursor: None,
-        product: None,
-        binary_data_array_list: None,
+#[inline]
+fn read_u64_le_at(bytes: &[u8], pos: &mut usize, field: &'static str) -> Result<u64, String> {
+    let s = take(bytes, pos, 8, field)?;
+    Ok(u64::from_le_bytes(s.try_into().unwrap()))
+}
+
+#[inline]
+fn parse_chrom_index(bytes: &[u8], header: &Header) -> Result<Vec<ChromIndexEntry>, String> {
+    let count = header.chrom_count as usize;
+    let off = header.off_chrom_index;
+    let need = (count as u64)
+        .checked_mul(INDEX_ENTRY_SIZE as u64)
+        .ok_or_else(|| "chrom index size overflow".to_string())?;
+    let raw = slice_at(bytes, off, need, "chrom index")?;
+
+    let mut pos = 0usize;
+    let mut out = Vec::with_capacity(count);
+    for _ in 0..count {
+        let time_element_off = read_u64_le_at(raw, &mut pos, "time_element_off")?;
+        let inten_element_off = read_u64_le_at(raw, &mut pos, "inten_element_off")?;
+        let time_element_len = read_u32_le_at(raw, &mut pos, "time_element_len")?;
+        let inten_element_len = read_u32_le_at(raw, &mut pos, "inten_element_len")?;
+        let time_block_id = read_u32_le_at(raw, &mut pos, "time_block_id")?;
+        let inten_block_id = read_u32_le_at(raw, &mut pos, "inten_block_id")?;
+        out.push(ChromIndexEntry {
+            time_element_off,
+            inten_element_off,
+            time_element_len,
+            inten_element_len,
+            time_block_id,
+            inten_block_id,
+        });
     }
+    Ok(out)
 }
 
-#[inline]
-fn split_prefix(acc: &str) -> Option<(&str, &str)> {
-    acc.split_once(':')
+#[derive(Clone, Copy)]
+struct BlockDirEntry {
+    comp_off: u64,
+    comp_size: u64,
+    uncomp_bytes: u64,
 }
 
-#[inline]
-fn opt_unit_cv_ref(unit_acc: &Option<String>) -> Option<String> {
-    unit_acc
-        .as_deref()
-        .and_then(|u| split_prefix(u))
-        .map(|(p, _)| p.to_string())
+struct ContainerReader<'a> {
+    bytes: &'a [u8],
+    elem_size: usize,
+    compression_level: u8,
+    array_filter: u8,
+    dir: Vec<BlockDirEntry>,
+    comp_buf_start: usize,
+    cache: Vec<Option<Vec<u8>>>,
+    scratch: Vec<u8>,
 }
 
-#[inline]
-fn value_to_opt_string(v: &MetadatumValue) -> Option<String> {
-    match v {
-        MetadatumValue::Empty => None,
-        MetadatumValue::Text(s) => Some(s.clone()),
-        MetadatumValue::Number(x) => Some(x.to_string()),
-    }
-}
+impl<'a> ContainerReader<'a> {
+    #[inline]
+    fn new(
+        bytes: &'a [u8],
+        block_count: u32,
+        elem_size: usize,
+        compression_level: u8,
+        array_filter: u8,
+    ) -> Result<Self, String> {
+        let bc = block_count as usize;
+        let dir_bytes = bc
+            .checked_mul(BLOCK_DIR_ENTRY_SIZE)
+            .ok_or_else(|| "container dir size overflow".to_string())?;
 
-#[inline]
-fn is_cv_prefix(p: &str) -> bool {
-    matches!(p, "MS" | "UO" | "NCIT" | "PEFF")
-}
-
-#[inline]
-fn allowed_bda_cv_accessions(schema: &Schema) -> Option<HashSet<&str>> {
-    let list = schema.root_by_tag(TagId::BinaryDataArrayList)?;
-    let bda = child_node(Some(list), TagId::BinaryDataArray)?;
-    let cvp = child_node(Some(bda), TagId::CvParam)?;
-
-    Some(cvp.accessions.iter().map(|s| s.as_str()).collect())
-}
-
-/// <binaryDataArrayList>
-#[inline]
-pub fn parse_binary_data_array_list(
-    schema: &Schema,
-    // bytes: &[u8],
-    metadata: &Vec<Metadatum>,
-) -> Option<BinaryDataArrayList> {
-    // let _ = bytes;
-
-    let list_node = find_node_by_tag(schema, TagId::BinaryDataArrayList)?;
-    let bda_node = child_node(Some(list_node), TagId::BinaryDataArray)?; // list -> bda
-    let mut groups: std::collections::HashMap<u32, Vec<&Metadatum>> =
-        std::collections::HashMap::new();
-    for m in metadata {
-        if matches!(
-            m.tag_id,
-            TagId::BinaryDataArray | TagId::CvParam | TagId::UserParam
-        ) {
-            groups.entry(m.item_index).or_default().push(m);
-        }
-    }
-
-    let mut keys: Vec<u32> = groups.keys().copied().collect();
-    keys.sort_unstable();
-
-    let mut binary_data_arrays = Vec::with_capacity(keys.len());
-    for k in keys {
-        let group = &groups[&k];
-        binary_data_arrays.push(parse_binary_data_array(schema, bda_node, group));
-    }
-
-    Some(BinaryDataArrayList {
-        count: Some(binary_data_arrays.len()),
-        binary_data_arrays,
-    })
-}
-
-#[inline]
-fn parse_binary_data_array(
-    _schema: &Schema,
-    bda_node: &SchemaNode,
-    metadata: &[&Metadatum],
-) -> BinaryDataArray {
-    // debug_assert!(child_node(Some(bda_node), TagId::Binary).is_some());
-    // allowed accessions belong here too (cvParam child of binaryDataArray)
-    let allowed: std::collections::HashSet<&str> = child_node(Some(bda_node), TagId::CvParam)
-        .map(|n| n.accessions.iter().map(|s| s.as_str()).collect())
-        .unwrap_or_default();
-
-    let mut out = BinaryDataArray {
-        array_length: None,
-        encoded_length: None,
-        data_processing_ref: None,
-        referenceable_param_group_refs: Vec::new(),
-        cv_params: Vec::new(),
-        user_params: Vec::new(),
-        is_f32: None,
-        is_f64: None,
-        decoded_binary_f32: Vec::new(),
-        decoded_binary_f64: Vec::new(),
-    };
-
-    for m in metadata {
-        let Some(acc) = m.accession.as_deref() else {
-            continue;
-        };
-        let Some((prefix, _)) = acc.split_once(':') else {
-            continue;
-        };
-
-        if prefix == "B000" {
-            continue; // attributes; later map to fields
+        if bytes.len() < dir_bytes {
+            return Err("container too small for directory".to_string());
         }
 
-        let value = value_to_opt_string(&m.value);
-        let unit_cv_ref = unit_cv_ref(&m.unit_accession);
-
-        if is_cv_prefix(prefix) {
-            if !allowed.is_empty() && !allowed.contains(acc) {
-                // policy: keep unknowns as userParam (or drop)
-                out.user_params.push(UserParam {
-                    name: acc.to_string(),
-                    r#type: None,
-                    unit_accession: m.unit_accession.clone(),
-                    unit_cv_ref,
-                    unit_name: None,
-                    value,
-                });
-                continue;
-            }
-
-            out.cv_params.push(CvParam {
-                cv_ref: Some(prefix.to_string()),
-                accession: Some(acc.to_string()),
-                name: cv_table::get(acc)
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(acc)
-                    .to_string(),
-                value,
-                unit_cv_ref,
-                unit_name: None,
-                unit_accession: m.unit_accession.clone(),
+        let mut pos = 0usize;
+        let dir_raw = &bytes[..dir_bytes];
+        let mut dir = Vec::with_capacity(bc);
+        for _ in 0..bc {
+            let comp_off = read_u64_le_at(dir_raw, &mut pos, "comp_off")?;
+            let comp_size = read_u64_le_at(dir_raw, &mut pos, "comp_size")?;
+            let uncomp_bytes = read_u64_le_at(dir_raw, &mut pos, "uncomp_bytes")?;
+            let _ = take(dir_raw, &mut pos, 8, "reserved")?;
+            dir.push(BlockDirEntry {
+                comp_off,
+                comp_size,
+                uncomp_bytes,
             });
+        }
+
+        Ok(Self {
+            bytes,
+            elem_size,
+            compression_level,
+            array_filter,
+            dir,
+            comp_buf_start: dir_bytes,
+            cache: vec![None; bc],
+            scratch: Vec::new(),
+        })
+    }
+
+    #[inline]
+    fn ensure_block(&mut self, block_id: u32) -> Result<(), String> {
+        let i = block_id as usize;
+        if i >= self.cache.len() {
+            return Err(format!("block_id out of range: {block_id}"));
+        }
+        if self.cache[i].is_some() {
+            return Ok(());
+        }
+
+        let e = self.dir[i];
+        let start = self
+            .comp_buf_start
+            .checked_add(usize::try_from(e.comp_off).map_err(|_| "comp_off overflow".to_string())?)
+            .ok_or_else(|| "comp start overflow".to_string())?;
+        let size = usize::try_from(e.comp_size).map_err(|_| "comp_size overflow".to_string())?;
+        let end = start
+            .checked_add(size)
+            .ok_or_else(|| "comp end overflow".to_string())?;
+
+        if end > self.bytes.len() {
+            return Err("container: block range out of bounds".to_string());
+        }
+
+        let comp = &self.bytes[start..end];
+        let mut out = if self.compression_level == 0 {
+            comp.to_vec()
         } else {
-            out.user_params.push(UserParam {
-                name: cv_table::get(acc)
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(acc)
-                    .to_string(),
-                r#type: None,
-                unit_accession: m.unit_accession.clone(),
-                unit_cv_ref,
-                unit_name: None,
-                value,
-            });
+            decompress_zstd(comp)?
+        };
+
+        let expected =
+            usize::try_from(e.uncomp_bytes).map_err(|_| "uncomp_bytes overflow".to_string())?;
+        if out.len() != expected {
+            return Err(format!(
+                "container: bad block size (block_id={block_id}, got={}, expected={})",
+                out.len(),
+                expected
+            ));
+        }
+
+        if self.array_filter == ARRAY_FILTER_BYTE_SHUFFLE && self.elem_size > 1 {
+            self.scratch.resize(out.len(), 0);
+            byte_unshuffle_into(&out, &mut self.scratch, self.elem_size);
+            out.clear();
+            out.extend_from_slice(&self.scratch);
+        }
+
+        self.cache[i] = Some(out);
+        Ok(())
+    }
+
+    #[inline]
+    fn block_bytes(&mut self, block_id: u32) -> Result<&[u8], String> {
+        self.ensure_block(block_id)?;
+        Ok(self.cache[block_id as usize].as_ref().unwrap().as_slice())
+    }
+}
+
+#[inline]
+fn byte_unshuffle_into(input: &[u8], output: &mut [u8], elem_size: usize) {
+    let count = input.len() / elem_size;
+    for b in 0..elem_size {
+        let in_base = b * count;
+        for e in 0..count {
+            output[b + e * elem_size] = input[in_base + e];
         }
     }
+}
 
-    let has_f32 = out
-        .cv_params
-        .iter()
-        .any(|p| p.accession.as_deref() == Some("MS:1000521"));
-    let has_f64 = out
-        .cv_params
-        .iter()
-        .any(|p| p.accession.as_deref() == Some("MS:1000523"));
-    if has_f32 {
-        out.is_f32 = Some(true);
-    }
-    if has_f64 {
-        out.is_f64 = Some(true);
-    }
+#[derive(Clone, Debug)]
+enum ArrayData {
+    F32(Vec<f32>),
+    F64(Vec<f64>),
+}
 
+#[inline]
+fn bytes_to_f32_vec(raw: &[u8]) -> Vec<f32> {
+    let mut out = Vec::with_capacity(raw.len() / 4);
+    for c in raw.chunks_exact(4) {
+        out.push(f32::from_le_bytes(c.try_into().unwrap()));
+    }
     out
 }
 
 #[inline]
-fn find_node_by_tag<'a>(schema: &'a Schema, tag: TagId) -> Option<&'a SchemaNode> {
-    if let Some(n) = schema.root_by_tag(tag) {
-        return Some(n);
+fn bytes_to_f64_vec(raw: &[u8]) -> Vec<f64> {
+    let mut out = Vec::with_capacity(raw.len() / 8);
+    for c in raw.chunks_exact(8) {
+        out.push(f64::from_le_bytes(c.try_into().unwrap()));
     }
-
-    for root in schema.roots.values() {
-        if let Some(n) = find_node_by_tag_rec(root, tag) {
-            return Some(n);
-        }
-    }
-    None
+    out
 }
 
-fn find_node_by_tag_rec<'a>(node: &'a SchemaNode, tag: TagId) -> Option<&'a SchemaNode> {
-    if node.self_tags.iter().any(|&t| t == tag) {
-        return Some(node);
+#[inline]
+fn compute_block_starts_for_x(
+    index: &[SpectrumIndexEntry],
+    block_count: u32,
+) -> Result<Vec<u64>, String> {
+    let mut starts = vec![u64::MAX; block_count as usize];
+    for e in index {
+        let bi = e.mz_block_id as usize;
+        if bi >= starts.len() {
+            return Err("mz_block_id out of range".to_string());
+        }
+        starts[bi] = starts[bi].min(e.mz_element_off);
     }
-    for child in node.children.values() {
-        if let Some(n) = find_node_by_tag_rec(child, tag) {
-            return Some(n);
+    Ok(starts)
+}
+
+#[inline]
+fn compute_block_starts_for_y(
+    index: &[SpectrumIndexEntry],
+    block_count: u32,
+) -> Result<Vec<u64>, String> {
+    let mut starts = vec![u64::MAX; block_count as usize];
+    for e in index {
+        let bi = e.inten_block_id as usize;
+        if bi >= starts.len() {
+            return Err("inten_block_id out of range".to_string());
+        }
+        starts[bi] = starts[bi].min(e.inten_element_off);
+    }
+    Ok(starts)
+}
+
+#[inline]
+fn compute_block_starts_for_cx(
+    index: &[ChromIndexEntry],
+    block_count: u32,
+) -> Result<Vec<u64>, String> {
+    let mut starts = vec![u64::MAX; block_count as usize];
+    for e in index {
+        let bi = e.time_block_id as usize;
+        if bi >= starts.len() {
+            return Err("time_block_id out of range".to_string());
+        }
+        starts[bi] = starts[bi].min(e.time_element_off);
+    }
+    Ok(starts)
+}
+
+#[inline]
+fn compute_block_starts_for_cy(
+    index: &[ChromIndexEntry],
+    block_count: u32,
+) -> Result<Vec<u64>, String> {
+    let mut starts = vec![u64::MAX; block_count as usize];
+    for e in index {
+        let bi = e.inten_block_id as usize;
+        if bi >= starts.len() {
+            return Err("inten_block_id out of range".to_string());
+        }
+        starts[bi] = starts[bi].min(e.inten_element_off);
+    }
+    Ok(starts)
+}
+
+#[inline]
+fn decode_item_array(
+    reader: &mut ContainerReader<'_>,
+    block_starts: &[u64],
+    block_id: u32,
+    global_off_elems: u64,
+    len_elems: u32,
+) -> Result<ArrayData, String> {
+    let bi = block_id as usize;
+    if bi >= block_starts.len() {
+        return Err("block_id out of range for starts".to_string());
+    }
+
+    let start = block_starts[bi];
+    if start == u64::MAX {
+        return Err("block start unknown".to_string());
+    }
+
+    let local_off_elems = global_off_elems
+        .checked_sub(start)
+        .ok_or_else(|| "negative local offset".to_string())?;
+
+    let elem_size = reader.elem_size;
+    if elem_size != 4 && elem_size != 8 {
+        return Err("unsupported elem_size".to_string());
+    }
+
+    let local_off_elems =
+        usize::try_from(local_off_elems).map_err(|_| "local offset overflow".to_string())?;
+    let len_elems = usize::try_from(len_elems).map_err(|_| "len overflow".to_string())?;
+
+    let off_bytes = local_off_elems
+        .checked_mul(elem_size)
+        .ok_or_else(|| "offset bytes overflow".to_string())?;
+    let len_bytes = len_elems
+        .checked_mul(elem_size)
+        .ok_or_else(|| "len bytes overflow".to_string())?;
+
+    let raw = reader.block_bytes(block_id)?;
+    let end = off_bytes
+        .checked_add(len_bytes)
+        .ok_or_else(|| "slice end overflow".to_string())?;
+    if end > raw.len() {
+        return Err("array slice out of bounds".to_string());
+    }
+
+    let slice = &raw[off_bytes..end];
+    Ok(match elem_size {
+        4 => ArrayData::F32(bytes_to_f32_vec(slice)),
+        8 => ArrayData::F64(bytes_to_f64_vec(slice)),
+        _ => unreachable!(),
+    })
+}
+
+#[inline]
+fn bda_has_array_kind(bda: &BinaryDataArray, tail: u32) -> bool {
+    bda.cv_params.iter().any(|p| {
+        p.accession
+            .as_deref()
+            .map(|a| parse_accession_tail_str(a) == tail)
+            .unwrap_or(false)
+    })
+}
+
+#[inline]
+fn ensure_float_flag(bda: &mut BinaryDataArray, is_f32: bool) {
+    if is_f32 {
+        if !bda
+            .cv_params
+            .iter()
+            .any(|p| p.accession.as_deref() == Some("MS:1000521"))
+        {
+            bda.cv_params.push(ms_float_param(ACC_32BIT_FLOAT));
+        }
+        bda.is_f32 = Some(true);
+        bda.is_f64 = None;
+    } else {
+        if !bda
+            .cv_params
+            .iter()
+            .any(|p| p.accession.as_deref() == Some("MS:1000523"))
+        {
+            bda.cv_params.push(ms_float_param(ACC_64BIT_FLOAT));
+        }
+        bda.is_f64 = Some(true);
+        bda.is_f32 = None;
+    }
+}
+
+#[inline]
+fn attach_xy_arrays_to_bdal(
+    list: &mut BinaryDataArrayList,
+    x: &ArrayData,
+    y: &ArrayData,
+    x_kind: u32,
+    y_kind: u32,
+) {
+    let mut x_i = None;
+    let mut y_i = None;
+
+    for (i, bda) in list.binary_data_arrays.iter().enumerate() {
+        if x_i.is_none() && bda_has_array_kind(bda, x_kind) {
+            x_i = Some(i);
+        }
+        if y_i.is_none() && bda_has_array_kind(bda, y_kind) {
+            y_i = Some(i);
         }
     }
-    None
+
+    let x_idx = x_i.unwrap_or(0);
+    let y_idx = y_i.unwrap_or_else(|| {
+        if list.binary_data_arrays.len() > 1 {
+            1
+        } else {
+            0
+        }
+    });
+
+    if list.binary_data_arrays.is_empty() {
+        return;
+    }
+
+    if x_idx < list.binary_data_arrays.len() {
+        let bda = &mut list.binary_data_arrays[x_idx];
+        match x {
+            ArrayData::F32(v) => {
+                bda.decoded_binary_f32 = v.clone();
+                bda.decoded_binary_f64.clear();
+                ensure_float_flag(bda, true);
+            }
+            ArrayData::F64(v) => {
+                bda.decoded_binary_f64 = v.clone();
+                bda.decoded_binary_f32.clear();
+                ensure_float_flag(bda, false);
+            }
+        }
+    }
+
+    if y_idx < list.binary_data_arrays.len() {
+        let bda = &mut list.binary_data_arrays[y_idx];
+        match y {
+            ArrayData::F32(v) => {
+                bda.decoded_binary_f32 = v.clone();
+                bda.decoded_binary_f64.clear();
+                ensure_float_flag(bda, true);
+            }
+            ArrayData::F64(v) => {
+                bda.decoded_binary_f64 = v.clone();
+                bda.decoded_binary_f32.clear();
+                ensure_float_flag(bda, false);
+            }
+        }
+    }
+
+    list.count = Some(list.binary_data_arrays.len());
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -330,192 +543,12 @@ pub enum MetadatumValue {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Metadatum {
     pub item_index: u32,
+    pub owner_id: u32,
+    pub parent_index: u32,
     pub tag_id: TagId,
     pub accession: Option<String>,
     pub unit_accession: Option<String>,
     pub value: MetadatumValue,
-}
-
-#[inline]
-fn take<'a>(
-    bytes: &'a [u8],
-    pos: &mut usize,
-    n: usize,
-    field: &'static str,
-) -> Result<&'a [u8], String> {
-    let end = pos
-        .checked_add(n)
-        .ok_or_else(|| format!("overflow while reading {field}"))?;
-    if end > bytes.len() {
-        return Err(format!(
-            "unexpected EOF while reading {field}: need {n} bytes at pos {pos}, len {}",
-            bytes.len()
-        ));
-    }
-    let out = &bytes[*pos..end];
-    *pos = end;
-    Ok(out)
-}
-
-#[inline]
-fn read_u32_vec(bytes: &[u8], pos: &mut usize, n: usize) -> Result<Vec<u32>, String> {
-    let raw = take(bytes, pos, n * 4, "u32 vector")?;
-    let mut out = Vec::with_capacity(n);
-    for chunk in raw.chunks_exact(4) {
-        out.push(u32::from_le_bytes(chunk.try_into().unwrap()));
-    }
-    Ok(out)
-}
-
-#[inline]
-fn read_f64_vec(bytes: &[u8], pos: &mut usize, n: usize) -> Result<Vec<f64>, String> {
-    let raw = take(bytes, pos, n * 8, "f64 vector")?;
-    let mut out = Vec::with_capacity(n);
-    for chunk in raw.chunks_exact(8) {
-        out.push(f64::from_le_bytes(chunk.try_into().unwrap()));
-    }
-    Ok(out)
-}
-
-#[inline]
-fn vs_len_bytes(vk: &[u8], vi: &[u32], voff: &[u32], vlen: &[u32]) -> Result<usize, String> {
-    let mut max_end = 0usize;
-
-    for j in 0..vk.len() {
-        if vk[j] != 1 {
-            continue;
-        }
-        let idx = vi[j] as usize;
-        if idx >= voff.len() || idx >= vlen.len() {
-            return Err("string VI out of range".to_string());
-        }
-        let end = (voff[idx] as usize)
-            .checked_add(vlen[idx] as usize)
-            .ok_or_else(|| "VOFF+VLEN overflow".to_string())?;
-        if end > max_end {
-            max_end = end;
-        }
-    }
-
-    Ok(max_end)
-}
-
-pub fn parse_metadata(
-    bytes: &[u8],
-    item_count: u32,
-    meta_count: u32,
-    num_count: u32,
-    str_count: u32,
-    compressed: bool,
-    reserved_flags: u8,
-) -> Result<Vec<Metadatum>, String> {
-    let codec_id = reserved_flags & HDR_CODEC_MASK;
-
-    let owned;
-    let bytes = if compressed {
-        if codec_id != HDR_CODEC_ZSTD {
-            return Err(format!("unsupported metadata codec_id={codec_id}"));
-        }
-        owned = decompress_zstd_allow_aligned_padding(bytes)?;
-        owned.as_slice()
-    } else {
-        bytes
-    };
-
-    let item_count = item_count as usize;
-    let meta_count = meta_count as usize;
-    let num_count = num_count as usize;
-    let str_count = str_count as usize;
-
-    let mut pos = 0;
-
-    let ci = read_u32_vec(bytes, &mut pos, item_count + 1)?;
-
-    let mti = take(bytes, &mut pos, meta_count, "metadatum tag id")?;
-    let mri = take(bytes, &mut pos, meta_count, "metadatum ref id")?;
-    let man = read_u32_vec(bytes, &mut pos, meta_count)?;
-    let muri = take(bytes, &mut pos, meta_count, "metadatum unit ref id")?;
-    let muan = read_u32_vec(bytes, &mut pos, meta_count)?;
-    let vk = take(bytes, &mut pos, meta_count, "metadatum value kind")?;
-    let vi = read_u32_vec(bytes, &mut pos, meta_count)?;
-
-    let vn = read_f64_vec(bytes, &mut pos, num_count)?;
-    let voff = read_u32_vec(bytes, &mut pos, str_count)?;
-    let vlen = read_u32_vec(bytes, &mut pos, str_count)?;
-
-    let vs_needed = vs_len_bytes(vk, &vi, &voff, &vlen)?;
-    let vs = take(bytes, &mut pos, vs_needed, "string values")?;
-
-    if !compressed {
-        let trailing = &bytes[pos..];
-        if trailing.len() > 7 || trailing.iter().any(|&b| b != 0) {
-            return Err("trailing bytes in metadata section".to_string());
-        }
-    } else if pos != bytes.len() {
-        return Err("trailing bytes in decompressed metadata section".to_string());
-    }
-
-    if ci.is_empty() || ci[0] != 0 {
-        return Err("CI[0] must be 0".to_string());
-    }
-    if ci[item_count] as usize != meta_count {
-        return Err("CI[last] must equal meta_count".to_string());
-    }
-
-    let mut prev = 0u32;
-    for &x in &ci {
-        if x < prev || (x as usize) > meta_count {
-            return Err("CI is not monotonic or out of range".to_string());
-        }
-        prev = x;
-    }
-
-    let mut out = Vec::with_capacity(meta_count);
-
-    for item_index in 0..item_count {
-        let start = ci[item_index] as usize;
-        let end = ci[item_index + 1] as usize;
-
-        for j in start..end {
-            let tag_id = TagId::from_u8(mti[j]).unwrap_or(TagId::Unknown);
-
-            let value = match vk[j] {
-                0 => {
-                    let idx = vi[j] as usize;
-                    if idx >= vn.len() {
-                        return Err("numeric VI out of range".to_string());
-                    }
-                    MetadatumValue::Number(vn[idx])
-                }
-                1 => {
-                    let idx = vi[j] as usize;
-                    if idx >= voff.len() || idx >= vlen.len() {
-                        return Err("string VI out of range".to_string());
-                    }
-                    let off = voff[idx] as usize;
-                    let len = vlen[idx] as usize;
-                    if off.checked_add(len).map_or(true, |e| e > vs.len()) {
-                        return Err("string slice out of bounds".to_string());
-                    }
-                    MetadatumValue::Text(String::from_utf8_lossy(&vs[off..off + len]).into_owned())
-                }
-                2 => MetadatumValue::Empty,
-                _ => MetadatumValue::Empty,
-            };
-
-            let accession = format_accession(mri[j], man[j]);
-            let unit_accession = format_accession(muri[j], muan[j]);
-            out.push(Metadatum {
-                item_index: item_index as u32,
-                tag_id,
-                accession,
-                unit_accession,
-                value,
-            });
-        }
-    }
-
-    Ok(out)
 }
 
 /// <cvList>
@@ -569,258 +602,74 @@ fn parse_scan_settings_list(_schema: &Schema, _bytes: &[u8]) -> Option<ScanSetti
     None
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Header {
-    pub file_signature: [u8; 4],
-    pub endianness_flag: u8,
-    pub reserved_alignment: [u8; 3],
-
-    pub off_spec_index: u64,
-    pub off_chrom_index: u64,
-    pub off_spec_meta: u64,
-    pub off_chrom_meta: u64,
-    pub off_global_meta: u64,
-
-    pub size_container_spect_x: u64,
-    pub off_container_spect_x: u64,
-    pub size_container_spect_y: u64,
-    pub off_container_spect_y: u64,
-    pub size_container_chrom_x: u64,
-    pub off_container_chrom_x: u64,
-    pub size_container_chrom_y: u64,
-    pub off_container_chrom_y: u64,
-
-    pub spectrum_count: u32,
-    pub chrom_count: u32,
-
-    pub spec_meta_count: u32,
-    pub spec_num_count: u32,
-    pub spec_str_count: u32,
-
-    pub chrom_meta_count: u32,
-    pub chrom_num_count: u32,
-    pub chrom_str_count: u32,
-
-    pub global_meta_count: u32,
-    pub global_num_count: u32,
-    pub global_str_count: u32,
-
-    pub block_count_spect_x: u32,
-    pub block_count_spect_y: u32,
-    pub block_count_chrom_x: u32,
-    pub block_count_chrom_y: u32,
-
-    pub reserved_flags: u8,
-    pub chrom_x_format: u8,
-    pub chrom_y_format: u8,
-    pub spect_x_format: u8,
-    pub spect_y_format: u8,
-    pub compression_level: u8,
-    pub array_filter: u8,
-
-    pub reserved: [u8; 13],
-}
-
-struct Reader<'a> {
-    bytes: &'a [u8],
-    pos: usize,
-}
-
-impl<'a> Reader<'a> {
-    #[inline]
-    fn new(bytes: &'a [u8]) -> Self {
-        Self { bytes, pos: 0 }
-    }
-
-    #[inline]
-    fn need(&self, n: usize, field: &str) -> Result<(), String> {
-        if self.pos + n <= self.bytes.len() {
-            Ok(())
-        } else {
-            Err(format!(
-                "header: not enough bytes for {field} at offset {} (need {n}, have {})",
-                self.pos,
-                self.bytes.len().saturating_sub(self.pos)
-            ))
-        }
-    }
-
-    #[inline]
-    fn read_u8(&mut self, field: &str) -> Result<u8, String> {
-        self.need(1, field)?;
-        let v = self.bytes[self.pos];
-        self.pos += 1;
-        Ok(v)
-    }
-
-    #[inline]
-    fn read_u32_le(&mut self, field: &str) -> Result<u32, String> {
-        self.need(4, field)?;
-        let v = u32::from_le_bytes(self.bytes[self.pos..self.pos + 4].try_into().unwrap());
-        self.pos += 4;
-        Ok(v)
-    }
-
-    #[inline]
-    fn read_u64_le(&mut self, field: &str) -> Result<u64, String> {
-        self.need(8, field)?;
-        let v = u64::from_le_bytes(self.bytes[self.pos..self.pos + 8].try_into().unwrap());
-        self.pos += 8;
-        Ok(v)
-    }
-
-    #[inline]
-    fn read_arr<const N: usize>(&mut self, field: &str) -> Result<[u8; N], String> {
-        self.need(N, field)?;
-        let v: [u8; N] = self.bytes[self.pos..self.pos + N].try_into().unwrap();
-        self.pos += N;
-        Ok(v)
-    }
-}
-
-pub fn parse_header(bytes: &[u8]) -> Result<Header, String> {
-    let mut r = Reader::new(bytes);
-
-    let file_signature = r.read_arr::<4>("file_signature")?;
-    let endianness_flag = r.read_u8("endianness_flag")?;
-    let reserved_alignment = r.read_arr::<3>("reserved_alignment")?;
-
-    if &file_signature != b"B000" {
-        return Err("header: invalid file_signature (expected \"B000\")".into());
-    }
-    if endianness_flag != 0 {
-        return Err("header: expected little-endian endianness_flag=0".into());
-    }
-
-    let off_spec_index = r.read_u64_le("off_spec_index")?;
-    let off_chrom_index = r.read_u64_le("off_chrom_index")?;
-    let off_spec_meta = r.read_u64_le("off_spec_meta")?;
-    let off_chrom_meta = r.read_u64_le("off_chrom_meta")?;
-    let off_global_meta = r.read_u64_le("off_global_meta")?;
-
-    let size_container_spect_x = r.read_u64_le("size_container_spect_x")?;
-    let off_container_spect_x = r.read_u64_le("off_container_spect_x")?;
-    let size_container_spect_y = r.read_u64_le("size_container_spect_y")?;
-    let off_container_spect_y = r.read_u64_le("off_container_spect_y")?;
-    let size_container_chrom_x = r.read_u64_le("size_container_chrom_x")?;
-    let off_container_chrom_x = r.read_u64_le("off_container_chrom_x")?;
-    let size_container_chrom_y = r.read_u64_le("size_container_chrom_y")?;
-    let off_container_chrom_y = r.read_u64_le("off_container_chrom_y")?;
-
-    let spectrum_count = r.read_u32_le("spectrum_count")?;
-    let chrom_count = r.read_u32_le("chrom_count")?;
-
-    let spec_meta_count = r.read_u32_le("spec_meta_count")?;
-    let spec_num_count = r.read_u32_le("spec_num_count")?;
-    let spec_str_count = r.read_u32_le("spec_str_count")?;
-
-    let chrom_meta_count = r.read_u32_le("chrom_meta_count")?;
-    let chrom_num_count = r.read_u32_le("chrom_num_count")?;
-    let chrom_str_count = r.read_u32_le("chrom_str_count")?;
-
-    let global_meta_count = r.read_u32_le("global_meta_count")?;
-    let global_num_count = r.read_u32_le("global_num_count")?;
-    let global_str_count = r.read_u32_le("global_str_count")?;
-
-    let block_count_spect_x = r.read_u32_le("block_count_spect_x")?;
-    let block_count_spect_y = r.read_u32_le("block_count_spect_y")?;
-    let block_count_chrom_x = r.read_u32_le("block_count_chrom_x")?;
-    let block_count_chrom_y = r.read_u32_le("block_count_chrom_y")?;
-
-    let reserved_flags = r.read_u8("reserved_flags")?;
-    let chrom_x_format = r.read_u8("chrom_x_format")?;
-    let chrom_y_format = r.read_u8("chrom_y_format")?;
-    let spect_x_format = r.read_u8("spect_x_format")?;
-    let spect_y_format = r.read_u8("spect_y_format")?;
-    let compression_level = r.read_u8("compression_level")?;
-    let array_filter = r.read_u8("array_filter")?;
-    let reserved = r.read_arr::<13>("reserved")?;
-
-    Ok(Header {
-        file_signature,
-        endianness_flag,
-        reserved_alignment,
-
-        off_spec_index,
-        off_chrom_index,
-        off_spec_meta,
-        off_chrom_meta,
-        off_global_meta,
-
-        size_container_spect_x,
-        off_container_spect_x,
-        size_container_spect_y,
-        off_container_spect_y,
-        size_container_chrom_x,
-        off_container_chrom_x,
-        size_container_chrom_y,
-        off_container_chrom_y,
-
-        spectrum_count,
-        chrom_count,
-
-        spec_meta_count,
-        spec_num_count,
-        spec_str_count,
-
-        chrom_meta_count,
-        chrom_num_count,
-        chrom_str_count,
-
-        global_meta_count,
-        global_num_count,
-        global_str_count,
-
-        block_count_spect_x,
-        block_count_spect_y,
-        block_count_chrom_x,
-        block_count_chrom_y,
-
-        reserved_flags,
-        chrom_x_format,
-        chrom_y_format,
-        spect_x_format,
-        spect_y_format,
-        compression_level,
-        array_filter,
-
-        reserved,
-    })
-}
-
 #[inline]
-fn decompress_zstd(mut input: &[u8]) -> Result<Vec<u8>, String> {
-    let mut dec = zstd::Decoder::new(&mut input).map_err(|e| format!("zstd decoder init: {e}"))?;
-    let mut out = Vec::new();
-    dec.read_to_end(&mut out)
-        .map_err(|e| format!("zstd decode: {e}"))?;
-    Ok(out)
-}
-
-#[inline]
-fn decompress_zstd_allow_aligned_padding(input: &[u8]) -> Result<Vec<u8>, String> {
-    match decompress_zstd(input) {
-        Ok(v) => Ok(v),
-        Err(first_err) => {
-            let mut trimmed = input;
-            for _ in 0..7 {
-                if trimmed.is_empty() || *trimmed.last().unwrap() != 0 {
-                    break;
-                }
-                trimmed = &trimmed[..trimmed.len() - 1];
-                if let Ok(v) = decompress_zstd(trimmed) {
-                    return Ok(v);
-                }
-            }
-            Err(first_err)
-        }
+fn ms_float_param(accession_tail: u32) -> CvParam {
+    let name = if accession_tail == ACC_32BIT_FLOAT {
+        "32-bit float"
+    } else {
+        "64-bit float"
+    };
+    CvParam {
+        cv_ref: Some("MS".to_string()),
+        accession: Some(format!("MS:{:07}", accession_tail)),
+        name: name.to_string(),
+        value: None,
+        unit_cv_ref: None,
+        unit_name: None,
+        unit_accession: None,
     }
 }
 
-#[inline]
-fn unit_cv_ref(unit_accession: &Option<String>) -> Option<String> {
-    unit_accession
-        .as_deref()
-        .and_then(|u| u.split_once(':'))
-        .map(|(prefix, _)| prefix.to_string())
+fn parse_metadata_section(
+    bytes: &[u8],
+    start_off: u64,
+    end_off: u64,
+    item_count: u32,
+    expected_item_count: u32,
+    meta_count: u32,
+    num_count: u32,
+    str_count: u32,
+    compression_flag_bit: u8,
+    expected_total_meta_len: usize,
+    section_name: &str,
+) -> Vec<Metadatum> {
+    let header = parse_header(&bytes).expect("parse_header failed");
+
+    let c0 = start_off as usize;
+    let c1 = end_off as usize;
+
+    assert!(
+        c0 < c1,
+        "invalid metadata offsets for {section_name}: start >= end"
+    );
+    assert!(
+        c1 <= bytes.len(),
+        "invalid metadata offsets for {section_name}: end out of bounds"
+    );
+    assert_eq!(
+        item_count, expected_item_count,
+        "test.b64 should contain {expected_item_count} {section_name} items"
+    );
+
+    let compressed = (header.reserved_flags & (1u8 << compression_flag_bit)) != 0;
+    let slice = &bytes[c0..c1];
+
+    let meta = parse_metadata(
+        slice,
+        item_count,
+        meta_count,
+        num_count,
+        str_count,
+        compressed,
+        header.reserved_flags,
+    )
+    .expect("parse_metadata failed");
+
+    assert_eq!(
+        meta.len(),
+        expected_total_meta_len,
+        "unexpected {section_name} metadata count (expected {expected_total_meta_len} total items)"
+    );
+
+    meta
 }
