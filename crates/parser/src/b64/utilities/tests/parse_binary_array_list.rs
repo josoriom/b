@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     CvParam,
-    b64::decode2::Metadatum,
+    b64::decode::Metadatum,
     b64::utilities::{parse_binary_data_array_list, parse_header, parse_metadata},
     mzml::schema::{TagId, schema},
 };
@@ -349,7 +349,6 @@ fn second_chrom_cv_params_item_by_item() {
         .collect();
 
     let bdal = parse_binary_data_array_list(&scoped).unwrap();
-    println!("----::>>> {:#?}", bdal);
     assert_eq!(bdal.count, Some(3));
     assert_eq!(bdal.binary_data_arrays.len(), 3);
 

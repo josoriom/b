@@ -4,7 +4,7 @@ use crate::b64::utilities::common::ChildIndex;
 use crate::mzml::{schema::TagId, schema::schema};
 use crate::{
     CvParam,
-    b64::decode2::Metadatum,
+    b64::decode::Metadatum,
     b64::utilities::{parse_header, parse_metadata, parse_precursor_list},
 };
 
@@ -169,7 +169,6 @@ fn second_spectrum_precursor_list_cv_params_item_by_item() {
 
     let precursor_list = parse_precursor_list(schema(), &scoped, &child_index)
         .expect("parse_precursor_list returned None for second spectrum");
-    println!("---:::>>> {:#?}", precursor_list);
     assert_eq!(precursor_list.count, Some(1));
     assert_eq!(precursor_list.precursors.len(), 1);
 

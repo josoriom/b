@@ -1,6 +1,6 @@
 use crate::{
     b64::utilities::common::*,
-    decode2::{Metadatum, MetadatumValue},
+    decode::{Metadatum, MetadatumValue},
     mzml::{attr_meta::format_accession, schema::TagId},
 };
 
@@ -34,11 +34,11 @@ pub fn parse_metadata(
     let num_count_usize = num_count as usize;
     let str_count_usize = str_count as usize;
 
-    let mut pos = 0;
+    let mut pos = 0usize;
 
     let ci = read_u32_vec(bytes, &mut pos, item_count_usize + 1)?;
-    let moi = read_u32_vec(bytes, &mut pos, meta_count_usize)?;
-    let mpi = read_u32_vec(bytes, &mut pos, meta_count_usize)?;
+    let moi = read_u32_vec(bytes, &mut pos, meta_count_usize)?; // MOI
+    let mpi = read_u32_vec(bytes, &mut pos, meta_count_usize)?; // MPI
 
     let mti = take(bytes, &mut pos, meta_count_usize, "metadatum tag id")?;
     let mri = take(bytes, &mut pos, meta_count_usize, "metadatum ref id")?;

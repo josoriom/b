@@ -536,7 +536,6 @@ fn tiny1_mzml0_99_0_spectrum_s20() {
 
     // spectrumDescription
     let sd = spectrum_description(s1);
-    println!("Spectrum Description CV Params: {:#?}", sd.cv_params);
     assert_cv(
         CV_REF_MODE,
         &sd.cv_params,

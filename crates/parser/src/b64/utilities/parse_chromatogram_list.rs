@@ -9,7 +9,7 @@ use crate::{
         },
         parse_binary_data_array_list, parse_cv_and_user_params,
     },
-    decode2::Metadatum,
+    decode::Metadatum,
     mzml::{
         schema::{SchemaTree as Schema, TagId},
         structs::{Activation, IsolationWindow, Precursor, Product, SelectedIon, SelectedIonList},
@@ -65,37 +65,91 @@ pub fn parse_chromatogram_list(
         return None;
     }
 
-    let mut owner_rows: HashMap<u32, Vec<&Metadatum>> = HashMap::new();
+    let mut chromatogram_owner_to_item: HashMap<u32, u32> =
+        HashMap::with_capacity(chromatogram_ids.len());
     for m in metadata {
-        owner_rows.entry(m.owner_id).or_default().push(m);
+        if m.tag_id == TagId::Chromatogram {
+            chromatogram_owner_to_item
+                .entry(m.owner_id)
+                .or_insert(m.item_index);
+        }
+    }
+
+    let mut want_items: HashSet<u32> = HashSet::with_capacity(chromatogram_ids.len());
+    for &id in &chromatogram_ids {
+        if let Some(&item_idx) = chromatogram_owner_to_item.get(&id) {
+            want_items.insert(item_idx);
+        }
+    }
+
+    let mut by_item_index: HashMap<u32, Vec<Metadatum>> = HashMap::with_capacity(want_items.len());
+    for m in metadata {
+        if want_items.contains(&m.item_index) {
+            by_item_index
+                .entry(m.item_index)
+                .or_default()
+                .push(m.clone());
+        }
     }
 
     let mut chromatograms = Vec::with_capacity(chromatogram_ids.len());
 
     for (fallback_index, chromatogram_id) in chromatogram_ids.into_iter().enumerate() {
-        let ids = subtree_owner_ids(chromatogram_id, child_index);
+        let item_idx = match chromatogram_owner_to_item.get(&chromatogram_id).copied() {
+            Some(v) => v,
+            None => continue,
+        };
 
-        let mut scoped: Vec<Metadatum> = Vec::new();
-        scoped.reserve(ids.len());
+        let item_meta = match by_item_index.get(&item_idx) {
+            Some(v) => v,
+            None => continue,
+        };
 
-        for id in ids {
-            if let Some(rows) = owner_rows.get(&id) {
-                scoped.extend(rows.iter().map(|m| (*m).clone()));
+        let mut has_other_root = false;
+        for m in item_meta {
+            if m.tag_id == TagId::Chromatogram && m.owner_id != chromatogram_id {
+                has_other_root = true;
+                break;
             }
         }
 
-        chromatograms.push(parse_chromatogram(
-            &scoped,
-            chromatogram_id,
-            child_index,
-            fallback_index as u32,
-            &allowed_chromatogram,
-            default_data_processing_ref.as_deref(),
-            &allowed_iso_precursor,
-            &allowed_sel_ion,
-            &allowed_activation,
-            &allowed_iso_product,
-        ));
+        if has_other_root {
+            let ids = subtree_owner_ids(chromatogram_id, child_index);
+            let keep: HashSet<u32> = ids.into_iter().collect();
+
+            let mut scoped: Vec<Metadatum> = Vec::with_capacity(item_meta.len());
+            for m in item_meta {
+                if keep.contains(&m.owner_id) {
+                    scoped.push(m.clone());
+                }
+            }
+
+            chromatograms.push(parse_chromatogram(
+                &scoped,
+                chromatogram_id,
+                child_index,
+                fallback_index as u32,
+                &allowed_chromatogram,
+                default_data_processing_ref.as_deref(),
+                &allowed_iso_precursor,
+                &allowed_sel_ion,
+                &allowed_activation,
+                &allowed_iso_product,
+            ));
+        } else {
+            chromatograms.push(parse_chromatogram(
+                item_meta,
+                chromatogram_id,
+                child_index,
+                fallback_index as u32,
+                &allowed_chromatogram,
+                default_data_processing_ref.as_deref(),
+                &allowed_iso_precursor,
+                &allowed_sel_ion,
+                &allowed_activation,
+                &allowed_iso_product,
+            ));
+        }
     }
 
     Some(ChromatogramList {
@@ -152,7 +206,8 @@ fn parse_chromatogram(
     let binary_data_array_list = parse_binary_data_array_list(metadata);
 
     let (x_len, y_len) = xy_lengths_from_bdal(binary_data_array_list.as_ref());
-    let default_array_length = default_array_length_attr.or(x_len).or(y_len).or(Some(0));
+    let default_array_length: Option<usize> =
+        default_array_length_attr.or(x_len).or(y_len).or(Some(0));
 
     let precursor = parse_precursor_for_chromatogram(
         metadata,

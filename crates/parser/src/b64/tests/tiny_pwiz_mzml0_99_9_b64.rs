@@ -1,8 +1,8 @@
 use crate::{
     mzml::structs::MzML,
     utilities::test::{
-        CvRefMode, assert_cv, chromatogram, chromatogram_list, parse_b, spectrum_by_index,
-        spectrum_description, spectrum_precursor_list, spectrum_scan_list,
+        CvRefMode, assert_cv, assert_software_param, chromatogram, chromatogram_list, parse_b,
+        spectrum_by_index, spectrum_description, spectrum_precursor_list, spectrum_scan_list,
     },
 };
 
@@ -186,41 +186,41 @@ fn tiny_msdata_mzml0_99_9_pwiz_header_sections() {
 
     let sw0 = &sw_list.software[0];
     assert_eq!(sw0.id, "Bioworks");
-    assert_eq!(sw0.version.as_deref(), Some("3.3.1 sp1"));
-    assert_cv(
+    assert_eq!(sw0.cv_param.len(), 0);
+    assert_eq!(sw0.software_param.len(), 1);
+    assert_software_param(
         CV_REF_MODE,
-        &sw0.cv_param,
-        "Bioworks",
-        "MS:1000533",
+        &sw0.software_param[0],
         "MS",
-        Some(""),
-        None,
+        "MS:1000533",
+        "Bioworks",
+        Some("3.3.1 sp1"),
     );
 
     let sw1 = &sw_list.software[1];
     assert_eq!(sw1.id, "pwiz");
-    assert_eq!(sw1.version.as_deref(), Some("1"));
-    assert_cv(
+    assert_eq!(sw1.cv_param.len(), 0);
+    assert_eq!(sw1.software_param.len(), 1);
+    assert_software_param(
         CV_REF_MODE,
-        &sw1.cv_param,
-        "ProteoWizard software",
-        "MS:1000615",
+        &sw1.software_param[0],
         "MS",
-        Some(""),
-        None,
+        "MS:1000615",
+        "ProteoWizard software",
+        Some("1"),
     );
 
     let sw2 = &sw_list.software[2];
     assert_eq!(sw2.id, "Xcalibur");
-    assert_eq!(sw2.version.as_deref(), Some("2.0.5"));
-    assert_cv(
+    assert_eq!(sw2.cv_param.len(), 0);
+    assert_eq!(sw2.software_param.len(), 1);
+    assert_software_param(
         CV_REF_MODE,
-        &sw2.cv_param,
-        "Xcalibur",
-        "MS:1000532",
+        &sw2.software_param[0],
         "MS",
-        Some(""),
-        None,
+        "MS:1000532",
+        "Xcalibur",
+        Some("2.0.5"),
     );
 
     // dataProcessingList

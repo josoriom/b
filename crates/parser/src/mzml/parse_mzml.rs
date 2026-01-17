@@ -709,8 +709,8 @@ fn parse_sample<R: BufRead>(reader: &mut Reader<R>, start: &BytesStart) -> Resul
                             Some(parse_referenceable_param_group_ref(&e));
                     }
                 }
-                b"cvParam" => sample.cv_params.push(parse_cv_param(&e)),
-                b"userParam" => sample.user_params.push(parse_user_param(&e)),
+                // b"cvParam" => sample.cv_params.push(parse_cv_param(&e)),
+                // b"userParam" => sample.user_params.push(parse_user_param(&e)),
                 _ => {}
             },
             Event::Start(e) => match e.name().as_ref() {
@@ -721,14 +721,14 @@ fn parse_sample<R: BufRead>(reader: &mut Reader<R>, start: &BytesStart) -> Resul
                     }
                     skip_element(reader, b"referenceableParamGroupRef")?;
                 }
-                b"cvParam" => {
-                    sample.cv_params.push(parse_cv_param(&e));
-                    skip_element(reader, b"cvParam")?;
-                }
-                b"userParam" => {
-                    sample.user_params.push(parse_user_param(&e));
-                    skip_element(reader, b"userParam")?;
-                }
+                // b"cvParam" => {
+                //     sample.cv_params.push(parse_cv_param(&e));
+                //     skip_element(reader, b"cvParam")?;
+                // }
+                // b"userParam" => {
+                //     sample.user_params.push(parse_user_param(&e));
+                //     skip_element(reader, b"userParam")?;
+                // }
                 _ => skip_element(reader, e.name().as_ref())?,
             },
             Event::End(e) if e.name().as_ref() == b"sample" => break,

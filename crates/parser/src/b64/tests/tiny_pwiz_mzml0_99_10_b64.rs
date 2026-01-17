@@ -3,8 +3,8 @@ use std::sync::OnceLock;
 use crate::{
     mzml::structs::MzML,
     utilities::test::{
-        CvRefMode, assert_cv, chromatogram, chromatogram_list, parse_b, spectrum_by_index,
-        spectrum_description, spectrum_precursor_list, spectrum_scan_list,
+        CvRefMode, assert_cv, assert_software_param, chromatogram, chromatogram_list, parse_b,
+        spectrum_by_index, spectrum_description, spectrum_precursor_list, spectrum_scan_list,
     },
 };
 
@@ -16,7 +16,6 @@ const CV_REF_MODE: CvRefMode = CvRefMode::Strict;
 #[test]
 fn tiny_msdata_mzml0_99_10_pwiz_header_sections() {
     let mzml = parse_b(&MZML_CACHE, PATH);
-
     // cvList
     let cv_list = mzml.cv_list.as_ref().expect("cvList parsed");
     assert_eq!(cv_list.cv.len(), 1);
@@ -186,41 +185,41 @@ fn tiny_msdata_mzml0_99_10_pwiz_header_sections() {
 
     let sw0 = &sw_list.software[0];
     assert_eq!(sw0.id, "Bioworks");
-    assert_eq!(sw0.version.as_deref(), Some("3.3.1 sp1"));
-    assert_cv(
+    assert_eq!(sw0.cv_param.len(), 0);
+    assert_eq!(sw0.software_param.len(), 1);
+    assert_software_param(
         CV_REF_MODE,
-        &sw0.cv_param,
-        "Bioworks",
-        "MS:1000533",
+        &sw0.software_param[0],
         "MS",
-        Some(""),
-        None,
+        "MS:1000533",
+        "Bioworks",
+        Some("3.3.1 sp1"),
     );
 
     let sw1 = &sw_list.software[1];
     assert_eq!(sw1.id, "pwiz");
-    assert_eq!(sw1.version.as_deref(), Some("1"));
-    assert_cv(
+    assert_eq!(sw1.cv_param.len(), 0);
+    assert_eq!(sw1.software_param.len(), 1);
+    assert_software_param(
         CV_REF_MODE,
-        &sw1.cv_param,
-        "ProteoWizard software",
-        "MS:1000615",
+        &sw1.software_param[0],
         "MS",
-        Some(""),
-        None,
+        "MS:1000615",
+        "ProteoWizard software",
+        Some("1"),
     );
 
     let sw2 = &sw_list.software[2];
     assert_eq!(sw2.id, "Xcalibur");
-    assert_eq!(sw2.version.as_deref(), Some("2.0.5"));
-    assert_cv(
+    assert_eq!(sw2.cv_param.len(), 0);
+    assert_eq!(sw2.software_param.len(), 1);
+    assert_software_param(
         CV_REF_MODE,
-        &sw2.cv_param,
-        "Xcalibur",
-        "MS:1000532",
+        &sw2.software_param[0],
         "MS",
-        Some(""),
-        None,
+        "MS:1000532",
+        "Xcalibur",
+        Some("2.0.5"),
     );
 
     // dataProcessingList
@@ -269,6 +268,8 @@ fn tiny_msdata_mzml0_99_10_pwiz_header_sections() {
 fn tiny_msdata_mzml0_99_10_pwiz_first_spectrum() {
     let mzml = parse_b(&MZML_CACHE, PATH);
     let run = &mzml.run;
+
+    // println!("----:::>>{:#?}", run.spectrum_list);
 
     // sourceFileRefList
     let sfrefl = run
@@ -681,6 +682,7 @@ fn tiny_msdata_mzml0_99_10_pwiz_second_spectrum() {
         (1usize, "intensity array", "MS:1000515"),
     ] {
         let ba = &bal.binary_data_arrays[i];
+        // println!("---:::>>> binary data array: {:#?}", ba);
         assert_eq!(ba.cv_params.len(), 3);
         assert_cv(
             CV_REF_MODE,
@@ -715,7 +717,7 @@ fn tiny_msdata_mzml0_99_10_pwiz_second_spectrum() {
 }
 
 #[test]
-fn tiny_msdata_mzml0_99_10_pwiz_chromatograms() {
+fn tiny_mzml0_99_10_pwiz_chromatograms() {
     let mzml = parse_b(&MZML_CACHE, PATH);
     let run = &mzml.run;
 
@@ -723,6 +725,7 @@ fn tiny_msdata_mzml0_99_10_pwiz_chromatograms() {
     assert_eq!(cl.chromatograms.len(), 2);
 
     let tic = chromatogram(cl, "tic");
+    // println!("---:::>>> tic: {:#?}", tic);
     assert_eq!(tic.index, Some(0));
     // assert_eq!(tic.native_id.as_deref(), Some("tic native"));
     assert_cv(
@@ -801,6 +804,7 @@ fn tiny_msdata_mzml0_99_10_pwiz_chromatograms() {
         (1usize, "intensity array", "MS:1000515", Some(108usize)),
     ] {
         let ba = &sic_bal.binary_data_arrays[i];
+        // println!("---:::>>> binary data array: {:#?}", ba);
         assert_cv(
             CV_REF_MODE,
             &ba.cv_params,

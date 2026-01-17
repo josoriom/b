@@ -3,9 +3,11 @@ use std::collections::HashMap;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::b64::decode2::{Metadatum, MetadatumValue};
+use crate::b64::decode::{Metadatum, MetadatumValue};
 use crate::mzml::attr_meta::{CV_REF_ATTR, attr_key_from_tail};
 use crate::mzml::schema::{SchemaNode, TagId, schema};
+
+static XMLKEY_TO_TAIL: std::sync::OnceLock<HashMap<&'static str, u32>> = std::sync::OnceLock::new();
 
 pub fn assign_attributes<T>(
     expected: &T,
@@ -16,13 +18,20 @@ pub fn assign_attributes<T>(
 where
     T: Serialize,
 {
+    #[inline]
     fn find_node<'a>(n: &'a SchemaNode, tag_id: TagId) -> Option<&'a SchemaNode> {
         if n.self_tags.iter().any(|t| *t == tag_id) {
             return Some(n);
         }
-        n.children.values().find_map(|c| find_node(c, tag_id))
+        for c in n.children.values() {
+            if let Some(x) = find_node(c, tag_id) {
+                return Some(x);
+            }
+        }
+        None
     }
 
+    #[inline]
     fn to_metadatum_value(v: &Value) -> Option<MetadatumValue> {
         match v {
             Value::Null => None,
@@ -50,17 +59,13 @@ where
     }
 
     #[inline]
-    fn upper_first(s: &str) -> String {
+    fn push_upper_first(dst: &mut String, s: &str) {
         let mut it = s.chars();
-        match it.next() {
-            None => String::new(),
-            Some(c0) => {
-                let mut out = String::new();
-                out.extend(c0.to_uppercase());
-                out.push_str(it.as_str());
-                out
-            }
+        let Some(c0) = it.next() else { return };
+        for uc in c0.to_uppercase() {
+            dst.push(uc);
         }
+        dst.push_str(it.as_str());
     }
 
     #[inline]
@@ -74,13 +79,12 @@ where
 
         let mut camel = String::from(first);
         for p in parts {
-            camel.push_str(&upper_first(p));
+            push_upper_first(&mut camel, p);
         }
 
         let id_variant = if camel.ends_with("Id") {
             let mut v = camel.clone();
-            let new_len = v.len() - 2;
-            v.truncate(new_len);
+            v.truncate(v.len() - 2);
             v.push_str("ID");
             Some(v)
         } else {
@@ -89,8 +93,7 @@ where
 
         let uri_variant = if camel.ends_with("Uri") {
             let mut v = camel.clone();
-            let new_len = v.len() - 3;
-            v.truncate(new_len);
+            v.truncate(v.len() - 3);
             v.push_str("URI");
             Some(v)
         } else {
@@ -110,6 +113,7 @@ where
         }
 
         let (camel, id_var, uri_var) = snake_to_camel_variants(field_key);
+
         if !camel.is_empty() {
             if let Some(v) = expected_obj.get(&camel) {
                 return Some(v);
@@ -129,23 +133,18 @@ where
         None
     }
 
-    let schema_attrs: HashMap<String, Vec<String>> = {
-        let tree = schema();
-        let node = tree
-            .roots
-            .values()
-            .find_map(|root| find_node(root, tag_id))
-            .unwrap_or_else(|| panic!("schema missing node for tag_id={tag_id:?}"));
-        node.attributes.clone()
-    };
+    let tree = schema();
+    let node = tree
+        .roots
+        .values()
+        .find_map(|root| find_node(root, tag_id))
+        .unwrap_or_else(|| panic!("schema missing node for tag_id={tag_id:?}"));
 
     let expected_json = serde_json::to_value(expected).expect("to_value(expected)");
     let expected_obj = expected_json
         .as_object()
         .unwrap_or_else(|| panic!("expected must serialize to JSON object"));
 
-    static XMLKEY_TO_TAIL: std::sync::OnceLock<HashMap<&'static str, u32>> =
-        std::sync::OnceLock::new();
     let xmlkey_to_tail = XMLKEY_TO_TAIL.get_or_init(|| {
         let mut m = HashMap::new();
         for tail in 9_900_000u32..=9_920_000u32 {
@@ -156,19 +155,18 @@ where
         m
     });
 
-    let mut items: Vec<(u32, MetadatumValue)> = Vec::with_capacity(schema_attrs.len());
+    let mut items: Vec<(u32, MetadatumValue)> = Vec::with_capacity(node.attributes.len());
 
-    for (field_key, xml_keys) in schema_attrs.iter() {
+    for (field_key, xml_keys) in node.attributes.iter() {
         let Some(v) = get_expected_field(expected_obj, field_key.as_str()) else {
             continue;
         };
-
         let Some(value) = to_metadatum_value(v) else {
             continue;
         };
 
         let xml_key = xml_keys
-            .get(0)
+            .first()
             .unwrap_or_else(|| panic!("schema attribute {field_key:?} has empty xml key list"));
 
         let tail = *xmlkey_to_tail.get(xml_key.as_str()).unwrap_or_else(|| {

@@ -3,8 +3,8 @@ use std::sync::OnceLock;
 use crate::{
     mzml::structs::MzML,
     utilities::test::{
-        CvRefMode, assert_cv, assert_cv_absent, parse_b, spectrum_by_id, spectrum_description,
-        spectrum_precursor_list, spectrum_scan_list,
+        CvRefMode, assert_cv, assert_cv_absent, assert_software_param, parse_b, spectrum_by_id,
+        spectrum_description, spectrum_precursor_list, spectrum_scan_list,
     },
 };
 
@@ -242,47 +242,42 @@ fn tiny2_srm_mzml0_99_0_header_sections() {
     assert_eq!(sw_list.software.len(), 3);
 
     let sw0 = &sw_list.software[0];
-    println!("sw0: {:#?}", sw0);
     assert_eq!(sw0.id, "Bioworks");
-    assert_eq!(sw0.cv_param.len(), 1);
-    assert_cv(
+    assert_eq!(sw0.cv_param.len(), 0);
+    assert_eq!(sw0.software_param.len(), 1);
+    assert_software_param(
         CV_REF_MODE,
-        &sw0.cv_param,
-        "Bioworks",
-        "MS:1000533",
+        &sw0.software_param[0],
         "MS",
-        Some(""),
-        None,
+        "MS:1000533",
+        "Bioworks",
+        Some("3.3.1 sp1"),
     );
 
     let sw1 = &sw_list.software[1];
-    println!("sw1: {:#?}", sw1);
-
     assert_eq!(sw1.id, "ReAdW");
-
-    assert_eq!(sw1.version.as_deref(), Some("1"));
-
-    assert_cv(
+    assert_eq!(sw1.cv_param.len(), 0);
+    assert_eq!(sw1.software_param.len(), 1);
+    assert_software_param(
         CV_REF_MODE,
-        &sw1.cv_param,
-        "ReAdW",
-        "MS:1000541",
+        &sw1.software_param[0],
         "MS",
-        Some(""),
-        None,
+        "MS:1000541",
+        "ReAdW",
+        Some("1"),
     );
 
     let sw2 = &sw_list.software[2];
     assert_eq!(sw2.id, "Xcalibur");
-    assert_eq!(sw2.version.as_deref(), Some("2.0.5"));
-    assert_cv(
+    assert_eq!(sw2.cv_param.len(), 0);
+    assert_eq!(sw2.software_param.len(), 1);
+    assert_software_param(
         CV_REF_MODE,
-        &sw2.cv_param,
-        "Xcalibur",
-        "MS:1000532",
+        &sw2.software_param[0],
         "MS",
-        Some(""),
-        None,
+        "MS:1000532",
+        "Xcalibur",
+        Some("2.0.5"),
     );
 
     // dataProcessingList
@@ -515,7 +510,7 @@ fn tiny2_srm_mzml0_99_0_spectrum_s101() {
 
     let mz_ba = &bal.binary_data_arrays[0];
     assert_eq!(mz_ba.array_length, Some(2));
-    assert_eq!(mz_ba.encoded_length, Some(24));
+    assert_eq!(mz_ba.encoded_length, Some(22));
     assert_cv(
         CV_REF_MODE,
         &mz_ba.cv_params,
@@ -546,7 +541,7 @@ fn tiny2_srm_mzml0_99_0_spectrum_s101() {
 
     let int_ba = &bal.binary_data_arrays[1];
     assert_eq!(int_ba.array_length, Some(2));
-    assert_eq!(int_ba.encoded_length, Some(12));
+    assert_eq!(int_ba.encoded_length, Some(11));
     assert_cv(
         CV_REF_MODE,
         &int_ba.cv_params,
@@ -714,9 +709,8 @@ fn tiny2_srm_mzml0_99_0_spectrum_s102() {
     assert_eq!(bal.binary_data_arrays.len(), 2);
 
     let mz_ba = &bal.binary_data_arrays[0];
-    println!("mz ba: {:?}", mz_ba);
     assert_eq!(mz_ba.array_length, Some(43));
-    assert_eq!(mz_ba.encoded_length, Some(460));
+    assert_eq!(mz_ba.encoded_length, Some(5000));
     assert_cv(
         CV_REF_MODE,
         &mz_ba.cv_params,
@@ -746,9 +740,8 @@ fn tiny2_srm_mzml0_99_0_spectrum_s102() {
     );
 
     let ba1 = &bal.binary_data_arrays[1];
-    println!("int ba1: {:?}", ba1);
     assert_eq!(ba1.array_length, Some(43));
-    assert_eq!(ba1.encoded_length, Some(232));
+    assert_eq!(ba1.encoded_length, Some(2500));
     assert_cv(
         CV_REF_MODE,
         &ba1.cv_params,

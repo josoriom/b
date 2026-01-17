@@ -6,13 +6,14 @@ use crate::{
         common::{ChildIndex, child_node, find_node_by_tag, ordered_unique_owner_ids},
         parse_cv_and_user_params,
     },
-    decode2::Metadatum,
+    decode::Metadatum,
     mzml::{
         schema::{SchemaTree as Schema, TagId},
         structs::IsolationWindow,
     },
 };
 
+/// <productList>
 #[inline]
 pub fn parse_product_list(
     schema: &Schema,
@@ -38,7 +39,7 @@ pub fn parse_product_list(
         .find(|m| m.tag_id == TagId::ProductList)
         .map(|m| m.owner_id);
 
-    let mut product_ids: Vec<u32> = if let Some(list_id) = product_list_id {
+    let mut product_ids = if let Some(list_id) = product_list_id {
         child_index.ids(list_id, TagId::Product).to_vec()
     } else {
         Vec::new()
@@ -47,6 +48,7 @@ pub fn parse_product_list(
     if product_ids.is_empty() {
         product_ids = ordered_unique_owner_ids(metadata, TagId::Product);
     }
+
     if product_ids.is_empty() {
         return None;
     }
@@ -67,6 +69,7 @@ pub fn parse_product_list(
     })
 }
 
+/// <product>
 #[inline]
 fn parse_product(
     product_id: u32,
@@ -98,6 +101,7 @@ fn parse_product(
     }
 }
 
+/// <isolationWindow>
 #[inline]
 fn parse_isolation_window(
     allowed_isolation_window: &HashSet<&str>,
@@ -107,7 +111,7 @@ fn parse_isolation_window(
     product_id: u32,
     product_parent: u32,
 ) -> Option<IsolationWindow> {
-    let mut meta: Vec<&Metadatum> = if let Some(iso_id) = isolation_window_id {
+    let mut meta = if let Some(iso_id) = isolation_window_id {
         params_for_parent(meta_by_id, child_index, iso_id)
     } else {
         params_for_parent(meta_by_id, child_index, product_id)

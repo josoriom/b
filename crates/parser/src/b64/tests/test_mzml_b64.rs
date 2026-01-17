@@ -13,7 +13,6 @@ const CV_REF_MODE: CvRefMode = CvRefMode::Strict;
 #[test]
 fn anpc_mzml1_1_0_header_sections() {
     let mzml = parse_b(&MZML_CACHE, PATH);
-
     // cvList
     let cv_list = mzml.cv_list.as_ref().expect("cvList parsed");
     assert_eq!(cv_list.cv.len(), 2);
@@ -121,6 +120,8 @@ fn anpc_mzml1_1_0_header_sections() {
 
     // softwareList
     let sw_list = mzml.software_list.as_ref().expect("softwareList parsed");
+
+    println!("---::>>{:#?}", sw_list);
     assert_eq!(sw_list.software.len(), 3);
 
     let baf2sql = sw_list.software.iter().find(|s| s.id == "BAF2SQL").unwrap();
@@ -188,7 +189,6 @@ fn anpc_mzml1_1_0_header_sections() {
 
     let cl = ic1.component_list.as_ref().expect("componentList parsed");
     assert_eq!(cl.source.len(), 1);
-    println!("Cvparams: {:#?}", cl.analyzer);
     assert_eq!(cl.analyzer.len(), 2);
     assert_eq!(cl.detector.len(), 2);
 
@@ -427,7 +427,7 @@ fn anpc_mzml1_1_0_first_spectrum() {
 
     // m/z array
     let mz = &bal.binary_data_arrays[0];
-    assert_eq!(mz.encoded_length, Some(108));
+    assert_eq!(mz.encoded_length, Some(3627008));
     assert_cv(
         CV_REF_MODE,
         &mz.cv_params,
@@ -458,7 +458,7 @@ fn anpc_mzml1_1_0_first_spectrum() {
 
     // intensity array (32-bit float)
     let it = &bal.binary_data_arrays[1];
-    assert_eq!(it.encoded_length, Some(108));
+    assert_eq!(it.encoded_length, Some(1813504));
     assert_cv(
         CV_REF_MODE,
         &it.cv_params,
@@ -691,7 +691,7 @@ fn anpc_mzml1_1_0_last_spectrum() {
     assert_eq!(bal.binary_data_arrays.len(), 2);
 
     let mz = &bal.binary_data_arrays[0];
-    assert_eq!(mz.encoded_length, Some(108));
+    assert_eq!(mz.encoded_length, Some(46296));
     assert_cv(
         CV_REF_MODE,
         &mz.cv_params,
@@ -721,7 +721,7 @@ fn anpc_mzml1_1_0_last_spectrum() {
     );
 
     let it = &bal.binary_data_arrays[1];
-    assert_eq!(it.encoded_length, Some(108));
+    assert_eq!(it.encoded_length, Some(23148));
     assert_cv(
         CV_REF_MODE,
         &it.cv_params,
@@ -752,7 +752,6 @@ fn anpc_mzml1_1_0_last_spectrum() {
 }
 
 #[test]
-#[ignore = "check later"]
 fn anpc_mzml1_1_0_chromatograms() {
     let mzml = parse_b(&MZML_CACHE, PATH);
     let run = &mzml.run;
@@ -783,11 +782,11 @@ fn anpc_mzml1_1_0_chromatograms() {
         .binary_data_array_list
         .as_ref()
         .expect("binaryDataArrayList parsed");
-    assert_eq!(bal.binary_data_arrays.len(), 2);
+    assert_eq!(bal.binary_data_arrays.len(), 3);
 
     // time array (64-bit float)
     let t = &bal.binary_data_arrays[0];
-    assert_eq!(t.encoded_length, Some(108));
+    assert_eq!(t.encoded_length, Some(37080));
     assert_cv(
         CV_REF_MODE,
         &t.cv_params,
@@ -818,7 +817,7 @@ fn anpc_mzml1_1_0_chromatograms() {
 
     // intensity array (32-bit float)
     let i = &bal.binary_data_arrays[1];
-    assert_eq!(i.encoded_length, Some(108));
+    assert_eq!(i.encoded_length, Some(18540));
     assert_cv(
         CV_REF_MODE,
         &i.cv_params,
@@ -846,8 +845,6 @@ fn anpc_mzml1_1_0_chromatograms() {
         Some(""),
         Some("number of detector counts"),
     );
-
-    print!("MS Level Binary Data Array: {:#?}", bal);
 
     let ms_level = &bal.binary_data_arrays[2];
     assert_eq!(ms_level.array_length, Some(3476));

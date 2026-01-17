@@ -67,10 +67,12 @@ pub const ACC_ATTR_REF: u32 = 9_910_002;
 pub const ACC_ATTR_NAME: u32 = 9_910_003;
 pub const ACC_ATTR_LOCATION: u32 = 9_910_004;
 
-pub const ACC_CV_ID: u32 = 9_900_001;
-pub const ACC_CV_FULL_NAME: u32 = 9_900_002;
-pub const ACC_CV_VERSION: u32 = 9_900_003;
-pub const ACC_CV_URI: u32 = 9_900_004;
+// <cv> attributes
+pub const ACC_ATTR_CV_ID: u32 = 9_900_001;
+pub const ACC_ATTR_CV_FULL_NAME: u32 = 9_900_002;
+pub const ACC_ATTR_CV_VERSION: u32 = 9_900_003;
+pub const ACC_ATTR_CV_URI: u32 = 9_900_004;
+pub const ACC_ATTR_LABEL: u32 = 9_910_020;
 
 pub const ACC_ATTR_START_TIME_STAMP: u32 = 9_910_005;
 pub const ACC_ATTR_DEFAULT_INSTRUMENT_CONFIGURATION_REF: u32 = 9_910_006;

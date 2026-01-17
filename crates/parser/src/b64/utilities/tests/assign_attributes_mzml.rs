@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     b64::{
-        decode2::{Metadatum, MetadatumValue},
+        decode::{Metadatum, MetadatumValue},
         utilities::common::find_node_by_tag,
         utilities::{assign_attributes, parse_header, parse_metadata},
     },
@@ -173,7 +173,7 @@ fn find_owner_id_by_tail_text(meta: &[Metadatum], tag: TagId, tail: u32, text: &
 }
 
 #[test]
-fn assign_attributes_spectrum_list_matches_b64_for_schema_attrs_present_in_b000() {
+fn assign_attrs_spectrum_list_b64_equiv_schema_subset() {
     let mzml = parse_mzml_cached(&MZML_CACHE, MZML_PATH);
     let sl = mzml
         .run
@@ -237,7 +237,7 @@ fn assign_attributes_spectrum_list_matches_b64_for_schema_attrs_present_in_b000(
 }
 
 #[test]
-fn assign_attributes_first_spectrum_matches_b64_for_schema_attrs_present_in_b000() {
+fn assign_attrs_spectrum_first_b64_equiv_schema_subset() {
     let mzml = parse_mzml_cached(&MZML_CACHE, MZML_PATH);
     let sl = mzml
         .run
@@ -283,7 +283,7 @@ fn assign_attributes_first_spectrum_matches_b64_for_schema_attrs_present_in_b000
 }
 
 #[test]
-fn assign_attributes_last_spectrum_matches_b64_for_schema_attrs_present_in_b000() {
+fn assign_attrs_spectrum_last_b64_equiv_schema_subset() {
     let mzml = parse_mzml_cached(&MZML_CACHE, MZML_PATH);
     let sl = mzml
         .run

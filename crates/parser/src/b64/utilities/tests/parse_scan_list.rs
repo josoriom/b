@@ -4,7 +4,7 @@ use crate::b64::utilities::common::ChildIndex;
 use crate::mzml::{schema::TagId, schema::schema};
 use crate::{
     CvParam,
-    b64::decode2::Metadatum,
+    b64::decode::Metadatum,
     b64::utilities::{parse_header, parse_metadata, parse_scan_list},
 };
 
@@ -60,19 +60,6 @@ fn parse_metadata_section_from_test_file(
         header.reserved_flags,
     )
     .expect("parse_metadata failed");
-
-    println!("---------:::>>{:?}", "");
-    for m in meta.iter().filter(|m| {
-        m.tag_id == TagId::CvParam
-            && m.accession
-                .as_deref()
-                .is_some_and(|a| a.starts_with("B000:"))
-    }) {
-        println!(
-            "B000 metadatum: item_index={} acc={:?} value={:?}",
-            m.item_index, m.accession, m.value
-        );
-    }
 
     assert_eq!(
         meta.len(),
@@ -239,7 +226,6 @@ fn second_spectrum_scan_list_cv_params_item_by_item() {
 
     let scan_list =
         parse_scan_list(schema(), &scoped, &child_index).expect("parse_scan_list returned None");
-    println!("----:::>>>{:#?}", scan_list);
 
     assert_eq!(scan_list.count, Some(1));
     assert_eq!(scan_list.scans.len(), 1);

@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     BinaryDataArray, BinaryDataArrayList,
-    decode2::{Metadatum, MetadatumValue},
+    decode::{Metadatum, MetadatumValue},
     mzml::{
         attr_meta::CV_REF_ATTR,
         schema::{SchemaNode, SchemaTree as Schema, TagId},
@@ -22,18 +22,20 @@ pub fn take<'a>(
     n: usize,
     field: &'static str,
 ) -> Result<&'a [u8], String> {
-    let end = pos
+    let start = *pos;
+    let end = start
         .checked_add(n)
         .ok_or_else(|| format!("overflow while reading {field}"))?;
+
     if end > bytes.len() {
         return Err(format!(
             "unexpected EOF while reading {field}: need {n} bytes at pos {pos}, len {}",
             bytes.len()
         ));
     }
-    let out = &bytes[*pos..end];
+
     *pos = end;
-    Ok(out)
+    Ok(&bytes[start..end])
 }
 
 #[inline]
@@ -41,7 +43,7 @@ pub fn read_u32_vec(bytes: &[u8], pos: &mut usize, n: usize) -> Result<Vec<u32>,
     let raw = take(bytes, pos, n * 4, "u32 vector")?;
     let mut out = Vec::with_capacity(n);
     for chunk in raw.chunks_exact(4) {
-        out.push(u32::from_le_bytes(chunk.try_into().unwrap()));
+        out.push(u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]));
     }
     Ok(out)
 }
@@ -51,7 +53,9 @@ pub fn read_f64_vec(bytes: &[u8], pos: &mut usize, n: usize) -> Result<Vec<f64>,
     let raw = take(bytes, pos, n * 8, "f64 vector")?;
     let mut out = Vec::with_capacity(n);
     for chunk in raw.chunks_exact(8) {
-        out.push(f64::from_le_bytes(chunk.try_into().unwrap()));
+        out.push(f64::from_le_bytes([
+            chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7],
+        ]));
     }
     Ok(out)
 }
@@ -60,17 +64,20 @@ pub fn read_f64_vec(bytes: &[u8], pos: &mut usize, n: usize) -> Result<Vec<f64>,
 pub fn vs_len_bytes(vk: &[u8], vi: &[u32], voff: &[u32], vlen: &[u32]) -> Result<usize, String> {
     let mut max_end = 0usize;
 
-    for j in 0..vk.len() {
-        if vk[j] != 1 {
+    for (j, &kind) in vk.iter().enumerate() {
+        if kind != 1 {
             continue;
         }
+
         let idx = vi[j] as usize;
         if idx >= voff.len() || idx >= vlen.len() {
             return Err("string VI out of range".to_string());
         }
+
         let end = (voff[idx] as usize)
             .checked_add(vlen[idx] as usize)
             .ok_or_else(|| "VOFF+VLEN overflow".to_string())?;
+
         if end > max_end {
             max_end = end;
         }
@@ -81,12 +88,21 @@ pub fn vs_len_bytes(vk: &[u8], vi: &[u32], voff: &[u32], vlen: &[u32]) -> Result
 
 #[inline]
 pub fn decompress_zstd_allow_aligned_padding(input: &[u8]) -> Result<Vec<u8>, String> {
+    if let Ok(n) = zstd::zstd_safe::find_frame_compressed_size(input) {
+        if n > 0 && n <= input.len() {
+            if let Ok(v) = decompress_zstd(&input[..n]) {
+                return Ok(v);
+            }
+        }
+    }
+
     match decompress_zstd(input) {
         Ok(v) => Ok(v),
         Err(first_err) => {
             let mut trimmed = input;
             for _ in 0..7 {
-                if trimmed.is_empty() || *trimmed.last().unwrap() != 0 {
+                let Some(&last) = trimmed.last() else { break };
+                if last != 0 {
                     break;
                 }
                 trimmed = &trimmed[..trimmed.len() - 1];
@@ -113,11 +129,21 @@ pub fn find_node_by_tag<'a>(schema: &'a Schema, tag: TagId) -> Option<&'a Schema
     if let Some(n) = schema.root_by_tag(tag) {
         return Some(n);
     }
+
     for root in schema.roots.values() {
-        if let Some(n) = find_node_by_tag_rec(root, tag) {
-            return Some(n);
+        let mut stack: Vec<&SchemaNode> = Vec::new();
+        stack.push(root);
+
+        while let Some(node) = stack.pop() {
+            if node.self_tags.iter().any(|&t| t == tag) {
+                return Some(node);
+            }
+            for child in node.children.values() {
+                stack.push(child);
+            }
         }
     }
+
     None
 }
 
@@ -164,23 +190,62 @@ pub fn unit_cv_ref(unit_accession: &Option<String>) -> Option<String> {
 }
 
 #[inline]
-pub fn get_attr_u32(rows: &[&Metadatum], tail: u32) -> Option<u32> {
-    let s = get_attr_text(rows, tail)?;
-    s.parse::<u32>().ok()
+fn b000_tail(acc: &str) -> Option<u32> {
+    let (pref, tail) = acc.split_once(':')?;
+    if pref != CV_REF_ATTR {
+        return None;
+    }
+    tail.parse::<u32>().ok()
 }
 
 #[inline]
-pub fn get_attr_text(rows: &[&Metadatum], tail: u32) -> Option<String> {
+pub fn get_attr_u32(rows: &[&Metadatum], accession_tail: u32) -> Option<u32> {
     for m in rows {
         let acc = m.accession.as_deref()?;
-        let (p, _) = split_prefix(acc)?;
-        if p != CV_REF_ATTR {
+        if b000_tail(acc) != Some(accession_tail) {
             continue;
         }
-        if parse_accession_tail_str(acc) != tail {
+
+        return match &m.value {
+            MetadatumValue::Number(n) => {
+                if !n.is_finite() || *n < 0.0 || *n > (u32::MAX as f64) {
+                    None
+                } else {
+                    let r = n.round();
+                    if (*n - r).abs() < 1e-9 {
+                        Some(r as u32)
+                    } else {
+                        None
+                    }
+                }
+            }
+            MetadatumValue::Text(s) => s.parse::<u32>().ok(),
+            MetadatumValue::Empty => None,
+        };
+    }
+    None
+}
+
+#[inline]
+pub fn get_attr_text(rows: &[&Metadatum], accession_tail: u32) -> Option<String> {
+    for m in rows {
+        let acc = m.accession.as_deref()?;
+        if b000_tail(acc) != Some(accession_tail) {
             continue;
         }
-        return value_to_opt_string(&m.value);
+
+        return match &m.value {
+            MetadatumValue::Text(s) => Some(s.clone()),
+            MetadatumValue::Number(n) => Some({
+                let r = n.round();
+                if (*n - r).abs() < 1e-9 {
+                    format!("{}", r as i64)
+                } else {
+                    format!("{}", n)
+                }
+            }),
+            MetadatumValue::Empty => None,
+        };
     }
     None
 }
@@ -199,6 +264,7 @@ pub fn parse_accession_tail_str(acc: &str) -> u32 {
 
     let mut v: u32 = 0;
     let mut saw = false;
+
     for b in tail.bytes() {
         if (b'0'..=b'9').contains(&b) {
             saw = true;
@@ -209,6 +275,7 @@ pub fn parse_accession_tail_str(acc: &str) -> u32 {
             }
         }
     }
+
     if saw { v } else { 0 }
 }
 
@@ -265,7 +332,7 @@ pub fn is_y_array(bda: &BinaryDataArray) -> bool {
 #[inline]
 pub fn ordered_unique_owner_ids(metadata: &[Metadatum], tag: TagId) -> Vec<u32> {
     let mut out = Vec::new();
-    let mut seen = HashSet::new();
+    let mut seen = HashSet::with_capacity(metadata.len().min(1024));
 
     for m in metadata {
         if m.tag_id == tag && seen.insert(m.owner_id) {
@@ -282,7 +349,8 @@ pub fn collect_subtree_owner_ids(
     children_by_parent: &HashMap<u32, Vec<u32>>,
 ) -> HashSet<u32> {
     let mut out = HashSet::new();
-    let mut stack = vec![root_id];
+    let mut stack = Vec::new();
+    stack.push(root_id);
 
     while let Some(id) = stack.pop() {
         if !out.insert(id) {
@@ -311,18 +379,33 @@ pub struct ChildIndex {
 impl ChildIndex {
     #[inline]
     pub fn new(metadata: &[Metadatum]) -> Self {
-        let mut ids_by_parent_tag: HashMap<u64, Vec<u32>> = HashMap::new();
-        let mut children_by_parent: HashMap<u32, Vec<u32>> = HashMap::new();
+        let mut ids_count: HashMap<u64, usize> = HashMap::with_capacity(metadata.len());
+        let mut children_count: HashMap<u32, usize> = HashMap::with_capacity(metadata.len());
 
         for m in metadata {
-            ids_by_parent_tag
+            *ids_count
                 .entry(key_parent_tag(m.parent_index, m.tag_id))
-                .or_default()
-                .push(m.owner_id);
+                .or_insert(0) += 1;
+            *children_count.entry(m.parent_index).or_insert(0) += 1;
+        }
 
+        let mut ids_by_parent_tag: HashMap<u64, Vec<u32>> = HashMap::with_capacity(ids_count.len());
+        for (k, c) in ids_count {
+            ids_by_parent_tag.insert(k, Vec::with_capacity(c));
+        }
+
+        let mut children_by_parent: HashMap<u32, Vec<u32>> =
+            HashMap::with_capacity(children_count.len());
+        for (k, c) in children_count {
+            children_by_parent.insert(k, Vec::with_capacity(c));
+        }
+
+        for m in metadata {
+            let k = key_parent_tag(m.parent_index, m.tag_id);
+            ids_by_parent_tag.get_mut(&k).unwrap().push(m.owner_id);
             children_by_parent
-                .entry(m.parent_index)
-                .or_default()
+                .get_mut(&m.parent_index)
+                .unwrap()
                 .push(m.owner_id);
         }
 
@@ -351,5 +434,25 @@ impl ChildIndex {
             .get(&parent_id)
             .map(|v| v.as_slice())
             .unwrap_or(&[])
+    }
+}
+
+#[inline]
+pub fn value_as_u32(v: &MetadatumValue) -> Option<u32> {
+    match v {
+        MetadatumValue::Text(s) => s.parse::<u32>().ok(),
+        MetadatumValue::Number(n) => {
+            if !n.is_finite() || *n < 0.0 {
+                return None;
+            }
+            if n.fract() != 0.0 {
+                return None;
+            }
+            if *n > (u32::MAX as f64) {
+                return None;
+            }
+            Some(*n as u32)
+        }
+        MetadatumValue::Empty => None,
     }
 }

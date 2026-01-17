@@ -1,6 +1,6 @@
 use std::{fs, path::PathBuf};
 
-use crate::b64::decode2::Metadatum;
+use crate::b64::decode::Metadatum;
 use crate::b64::utilities::common::ChildIndex;
 use crate::b64::utilities::{parse_chromatogram_list, parse_header, parse_metadata};
 use crate::mzml::schema::schema;
@@ -111,7 +111,7 @@ fn parse_chromatogram_list_from_test_file() -> ChromatogramList {
 }
 
 #[test]
-fn chromatogram_list_basic_attributes_and_count() {
+fn chromatogram_list_emits_count_and_default_dp_ref() {
     let cl = parse_chromatogram_list_from_test_file();
 
     assert_eq!(cl.chromatograms.len(), 2);
@@ -123,7 +123,7 @@ fn chromatogram_list_basic_attributes_and_count() {
 }
 
 #[test]
-fn first_chromatogram_cv_params_and_binary_data_array_list_smoke() {
+fn chromatogram_0_tic_cv_params_and_bdal_shape() {
     let cl = parse_chromatogram_list_from_test_file();
     let c = &cl.chromatograms[0];
 
@@ -310,7 +310,7 @@ fn first_chromatogram_cv_params_and_binary_data_array_list_smoke() {
 }
 
 #[test]
-fn second_chromatogram_has_expected_cv_param_and_same_binary_array_shapes() {
+fn chromatogram_1_bpc_has_expected_cv_and_bdal_lengths_match() {
     let cl = parse_chromatogram_list_from_test_file();
     let c = &cl.chromatograms[1];
 

@@ -1,7 +1,7 @@
 use std::{fs, path::PathBuf};
 
 use crate::b64::{
-    decode2::{Metadatum, MetadatumValue},
+    decode::{Metadatum, MetadatumValue},
     utilities::{parse_header, parse_metadata},
 };
 use crate::mzml::{attr_meta::*, schema::TagId};
@@ -83,7 +83,6 @@ fn check_first_spectrum() {
         54,
         "spectra",
     );
-    println!("---::>>{:#?}", spec_meta);
 
     assert_eq!(item_meta_count(&spec_meta, 0), 24);
     expect_text_one(

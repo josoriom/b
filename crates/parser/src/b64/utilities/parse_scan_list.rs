@@ -6,7 +6,7 @@ use crate::{
         common::{ChildIndex, child_node, find_node_by_tag, ordered_unique_owner_ids},
         parse_cv_and_user_params,
     },
-    decode2::Metadatum,
+    decode::Metadatum,
     mzml::{
         schema::{SchemaTree as Schema, TagId},
         structs::Scan,

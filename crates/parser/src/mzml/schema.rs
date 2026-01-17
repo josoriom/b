@@ -95,6 +95,8 @@ pub enum TagId {
 
     CvParam = 52,
     UserParam = 53,
+    CvList = 54,
+    Cv = 55,
 
     Unknown = 255,
 }
@@ -175,16 +177,19 @@ impl TagId {
             "cvParam" => TagId::CvParam,
             "userParam" => TagId::UserParam,
 
+            "cvList" => TagId::CvList,
+            "cv" => TagId::Cv,
+
             _ => TagId::Unknown,
         }
     }
 
     #[inline]
     pub fn from_u8(b: u8) -> Option<TagId> {
-        if b <= TagId::UserParam as u8 || b == TagId::Unknown as u8 {
-            Some(TagId::from(b))
-        } else {
-            None
+        const MAX_TAG: u8 = TagId::Cv as u8;
+        match b {
+            0..=MAX_TAG | 255 => Some(TagId::from(b)),
+            _ => None,
         }
     }
 
@@ -252,6 +257,8 @@ impl From<u8> for TagId {
             51 => TagId::ChromatogramList,
             52 => TagId::CvParam,
             53 => TagId::UserParam,
+            54 => TagId::CvList,
+            55 => TagId::Cv,
             255 => TagId::Unknown,
             _ => TagId::Unknown,
         }

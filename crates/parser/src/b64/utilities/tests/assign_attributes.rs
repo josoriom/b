@@ -1,4 +1,4 @@
-use crate::b64::decode2::{Metadatum, MetadatumValue};
+use crate::b64::decode::{Metadatum, MetadatumValue};
 use crate::b64::utilities::assign_attributes;
 use crate::mzml::attr_meta::*;
 use crate::mzml::schema::TagId;
@@ -43,7 +43,7 @@ fn assert_num(xs: &[Metadatum], tail: u32, n: f64) {
 }
 
 #[test]
-fn assign_attributes_spectrum_happy_path_fills_only_schema_attributes_and_returns_leftovers() {
+fn assign_attrs_spectrum_emits_schema_b000_only() {
     let mut s = Spectrum::default();
 
     s.id = "scan=1".to_string();
@@ -85,7 +85,7 @@ fn assign_attributes_spectrum_happy_path_fills_only_schema_attributes_and_return
 }
 
 #[test]
-fn assign_attributes_does_not_touch_or_consume_non_b000_meta() {
+fn assign_attrs_emits_only_b000_accessions() {
     let s = Spectrum::default();
 
     let owner_id = 1u32;
@@ -106,7 +106,7 @@ fn assign_attributes_does_not_touch_or_consume_non_b000_meta() {
 }
 
 #[test]
-fn assign_attributes_must_not_consume_anything_if_parsing_fails() {
+fn assign_attrs_spectrum_id_is_preserved() {
     let mut s = Spectrum::default();
     s.id = "ok".to_string();
 
@@ -120,7 +120,7 @@ fn assign_attributes_must_not_consume_anything_if_parsing_fails() {
 }
 
 #[test]
-fn assign_attributes_works_for_other_structs_with_primitive_attributes_chromatogram() {
+fn assign_attrs_chromatogram_emits_schema_b000_only() {
     let mut c = Chromatogram::default();
 
     c.id = "TIC".to_string();

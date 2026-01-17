@@ -221,8 +221,6 @@ pub struct Sample {
     pub id: String,
     pub name: String,
     pub referenceable_param_group_ref: Option<ReferenceableParamGroupRef>,
-    pub cv_params: Vec<CvParam>,
-    pub user_params: Vec<UserParam>,
 }
 
 /// <scanSettingsList> / <acquisitionSettingsList>

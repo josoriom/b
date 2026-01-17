@@ -20,6 +20,23 @@ pub mod parse_chromatogram_list;
 pub use parse_chromatogram_list::parse_chromatogram_list;
 pub mod assign_attributes;
 pub use assign_attributes::assign_attributes;
+pub mod parse_file_description;
+pub use parse_file_description::parse_file_description;
+pub mod parse_referenceable_param_group_list;
+pub use parse_referenceable_param_group_list::parse_referenceable_param_group_list;
+pub mod parse_global_metadata;
+pub mod parse_sample_list;
+pub use parse_sample_list::parse_sample_list;
+pub mod parse_instrument_list;
+pub use parse_instrument_list::parse_instrument_list;
+pub mod parse_software_list;
+pub use parse_software_list::parse_software_list;
+pub mod parse_data_processing_list;
+pub use parse_data_processing_list::parse_data_processing_list;
+pub mod parse_scan_settings_list;
+pub use parse_scan_settings_list::parse_scan_settings_list;
+pub mod parse_cv_list;
+pub use parse_cv_list::parse_cv_list;
 
 #[cfg(test)]
 mod tests;

@@ -340,8 +340,8 @@ fn write_sample_list(writer: &mut Writer<Vec<u8>>, list: &SampleList) -> Result<
         if let Some(r) = &s.referenceable_param_group_ref {
             write_referenceable_param_group_ref(writer, r)?;
         }
-        write_cv_params(writer, &s.cv_params)?;
-        write_user_params(writer, &s.user_params)?;
+        // write_cv_params(writer, &s.cv_params)?;
+        // write_user_params(writer, &s.user_params)?;
 
         writer
             .write_event(Event::End(BytesEnd::new("sample")))

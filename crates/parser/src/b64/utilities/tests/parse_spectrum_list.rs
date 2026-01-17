@@ -1,6 +1,6 @@
 use std::{fs, path::PathBuf};
 
-use crate::b64::decode2::Metadatum;
+use crate::b64::decode::Metadatum;
 use crate::b64::utilities::common::ChildIndex;
 use crate::b64::utilities::{parse_header, parse_metadata, parse_spectrum_list};
 use crate::mzml::schema::{TagId, schema};
@@ -59,8 +59,6 @@ fn parse_metadata_section_from_test_file(
     )
     .expect("parse_metadata failed");
 
-    println!("----::>>{:#?}", meta);
-
     assert_eq!(
         meta.len(),
         expected_total_meta_len,
@@ -87,11 +85,11 @@ fn parse_spectrum_list_from_test_file() -> SpectrumList {
         "spectra",
     );
 
-    println!("---::>>{:#?}", meta);
-
     let child_index = ChildIndex::new(&meta);
 
-    parse_spectrum_list(schema(), &meta, &child_index).expect("parse_spectrum_list returned None")
+    let spectrum_list = parse_spectrum_list(schema(), &meta, &child_index)
+        .expect("parse_spectrum_list returned None");
+    spectrum_list
 }
 
 #[derive(Clone, Copy, Debug)]

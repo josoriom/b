@@ -7,6 +7,8 @@ mod parse_precursor_list;
 
 mod parse_spectrum_list;
 
+mod parse_file_description;
+
 mod parse_chromatogram_list;
 
 mod assign_attributes;
