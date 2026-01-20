@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    BinaryDataArray, BinaryDataArrayList,
+    BinaryData, BinaryDataArray, BinaryDataArrayList,
     decode::{Metadatum, MetadatumValue},
     mzml::{
         attr_meta::CV_REF_ATTR,
@@ -312,10 +312,15 @@ pub fn xy_lengths_from_bdal(list: Option<&BinaryDataArrayList>) -> (Option<usize
 
 #[inline]
 pub fn decoded_len(bda: &BinaryDataArray) -> usize {
-    if !bda.decoded_binary_f64.is_empty() {
-        bda.decoded_binary_f64.len()
-    } else {
-        bda.decoded_binary_f32.len()
+    match bda.binary.as_ref() {
+        None => 0,
+        Some(bin) => match bin {
+            BinaryData::F32(v) => v.len(),
+            BinaryData::F64(v) => v.len(),
+            BinaryData::I64(v) => v.len(),
+            BinaryData::I32(v) => v.len(),
+            BinaryData::I16(v) => v.len(),
+        },
     }
 }
 

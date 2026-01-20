@@ -99,7 +99,7 @@
               <cvParam cvRef="MS" accession="MS:1000521" name="32-bit float" value=""/>
               <cvParam cvRef="MS" accession="MS:1000576" name="no compression" value=""/>
               <cvParam cvRef="MS" accession="MS:1000515" name="intensity array" value="" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
-              <binary>AAAAAAAAAAAAAAAAAADwPwAAAAAAAABAAAAAAAAACEAAAAAAAAAQQAAAAAAAABRAAAAAAAAAGEAAAAAAAAAcQAAAAAAAACBAAAAAAAAAIkA=</binary>
+              <binary>AAAAAAAAgD8AAABAAABAQAAAgEAAAKBAAADAQAAA4EAAAABBAAAQQQ==</binary>
             </binaryDataArray>
           </binaryDataArrayList>
         </spectrum>
@@ -151,7 +151,7 @@
               <cvParam cvRef="MS" accession="MS:1000521" name="32-bit float" value=""/>
               <cvParam cvRef="MS" accession="MS:1000576" name="no compression" value=""/>
               <cvParam cvRef="MS" accession="MS:1000515" name="intensity array" value="" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
-              <binary>AAAAAAAAAAAAAAAAAADwPwAAAAAAAABAAAAAAAAACEAAAAAAAAAQQAAAAAAAABRAAAAAAAAAGEAAAAAAAAAcQAAAAAAAACBAAAAAAAAAIkA=</binary>
+              <binary>AAAAAAAAgD8AAABAAABAQAAAgEAAAKBAAADAQAAA4EAAAABBAAAQQQ==</binary>
             </binaryDataArray>
           </binaryDataArrayList>
         </spectrum>
@@ -170,13 +170,13 @@
               <cvParam cvRef="MS" accession="MS:1000521" name="32-bit float" value=""/>
               <cvParam cvRef="MS" accession="MS:1000576" name="no compression" value=""/>
               <cvParam cvRef="MS" accession="MS:1000515" name="intensity array" value="" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
-              <binary>AAAAAAAAAAAAAAAAAADwPwAAAAAAAABAAAAAAAAACEAAAAAAAAAQQAAAAAAAABRAAAAAAAAAGEAAAAAAAAAcQAAAAAAAACBAAAAAAAAAIkA=</binary>
+              <binary>AAAAAAAAgD8AAABAAABAQAAAgEAAAKBAAADAQAAA4EAAAABBAAAQQQ==</binary>
             </binaryDataArray>
             <binaryDataArray arrayLength="3476" encodedLength="37080">
               <cvParam cvRef="MS" accession="MS:1000522" name="64-bit integer" value=""/>
               <cvParam cvRef="MS" accession="MS:1000576" name="no compression" value=""/>
               <cvParam cvRef="MS" accession="MS:1000786" name="non-standard data array" value="ms level" unitCvRef="UO" unitAccession="UO:0000186" unitName="dimensionless unit"/>
-              <binary>AAAAAAAAAAAAAAAAAADwPwAAAAAAAABAAAAAAAAACEAAAAAAAAAQQAAAAAAAABRAAAAAAAAAGEAAAAAAAAAcQAAAAAAAACBAAAAAAAAAIkA=</binary>
+              <binary>AAAAAAAAAAABAAAAAAAAAAIAAAAAAAAAAwAAAAAAAAAEAAAAAAAAAAUAAAAAAAAABgAAAAAAAAAHAAAAAAAAAAgAAAAAAAAACQAAAAAAAAA=</binary>
             </binaryDataArray>
           </binaryDataArrayList>
         </chromatogram>
@@ -193,13 +193,13 @@
               <cvParam cvRef="MS" accession="MS:1000521" name="32-bit float" value=""/>
               <cvParam cvRef="MS" accession="MS:1000576" name="no compression" value=""/>
               <cvParam cvRef="MS" accession="MS:1000515" name="intensity array" value="" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
-              <binary>AAAAAAAAAAAAAAAAAADwPwAAAAAAAABAAAAAAAAACEAAAAAAAAAQQAAAAAAAABRAAAAAAAAAGEAAAAAAAAAcQAAAAAAAACBAAAAAAAAAIkA=</binary>
+              <binary>AAAAAAAAgD8AAABAAABAQAAAgEAAAKBAAADAQAAA4EAAAABBAAAQQQ==</binary>
             </binaryDataArray>
             <binaryDataArray arrayLength="3476" encodedLength="37080">
               <cvParam cvRef="MS" accession="MS:1000522" name="64-bit integer" value=""/>
               <cvParam cvRef="MS" accession="MS:1000576" name="no compression" value=""/>
               <cvParam cvRef="MS" accession="MS:1000786" name="non-standard data array" value="ms level" unitCvRef="UO" unitAccession="UO:0000186" unitName="dimensionless unit"/>
-              <binary>AAAAAAAAAAAAAAAAAADwPwAAAAAAAABAAAAAAAAACEAAAAAAAAAQQAAAAAAAABRAAAAAAAAAGEAAAAAAAAAcQAAAAAAAACBAAAAAAAAAIkA=</binary>
+              <binary>AAAAAAAAAAABAAAAAAAAAAIAAAAAAAAAAwAAAAAAAAAEAAAAAAAAAAUAAAAAAAAABgAAAAAAAAAHAAAAAAAAAAgAAAAAAAAACQAAAAAAAAA=</binary>
             </binaryDataArray>
           </binaryDataArrayList>
         </chromatogram>

@@ -8,7 +8,7 @@ use crate::{
     CvParam,
     b64::decode::Metadatum,
     b64::utilities::{parse_binary_data_array_list, parse_header, parse_metadata},
-    mzml::schema::{TagId, schema},
+    mzml::schema::TagId,
 };
 
 const PATH: &str = "data/b64/test.b64";

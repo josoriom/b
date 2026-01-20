@@ -2306,26 +2306,22 @@ fn parse_binary_data_array<R: BufRead>(
     }
 
     let flags = binary_array_flags(&a);
-    a.is_f32 = Some(flags.is_f32);
-    a.is_f64 = Some(flags.is_f64);
+    a.numeric_type = Some(flags.numeric_type);
 
-    let Some(b64) = binary_b64.as_deref() else {
+    let Some(b64_raw) = binary_b64.as_deref() else {
         return Ok(a);
     };
-    let b64 = b64.trim();
-    if b64.is_empty() {
+
+    let cleaned: String = b64_raw.chars().filter(|c| !c.is_whitespace()).collect();
+    if cleaned.is_empty() {
         return Ok(a);
     }
 
     let mut bytes = Vec::new();
-    if let Some(n) = a.encoded_length {
-        bytes.reserve(n.saturating_mul(3) / 4 + 8);
-    } else {
-        bytes.reserve(b64.len().saturating_mul(3) / 4 + 8);
-    }
+    bytes.reserve(cleaned.len().saturating_mul(3) / 4 + 8);
 
     STANDARD
-        .decode_vec(b64.as_bytes(), &mut bytes)
+        .decode_vec(cleaned.as_bytes(), &mut bytes)
         .map_err(|e| format!("base64 decode failed: {e}"))?;
 
     if flags.is_zlib {
@@ -2333,25 +2329,96 @@ fn parse_binary_data_array<R: BufRead>(
             decompress_to_vec_zlib(&bytes).map_err(|e| format!("zlib decompress failed: {e:?}"))?;
     }
 
-    let want = match a.array_length {
-        Some(n) => n,
-        None => {
-            if flags.is_f64 {
-                bytes.len() / 8
-            } else if flags.is_f32 {
-                bytes.len() / 4
-            } else {
-                0
-            }
-        }
-    };
+    match flags.numeric_type {
+        NumericType::Float64 => {
+            let elem = 8usize;
+            let usable = bytes.len() - (bytes.len() % elem);
+            let avail = usable / elem;
+            let want = a.array_length.unwrap_or(avail);
+            let n = want.min(avail);
 
-    if flags.is_f64 {
-        a.decoded_binary_f64.clear();
-        decode_f64_into(&bytes, true, want, &mut a.decoded_binary_f64);
-    } else if flags.is_f32 {
-        a.decoded_binary_f32.clear();
-        decode_f32_into(&bytes, true, want, &mut a.decoded_binary_f32);
+            if n == 0 {
+                return Ok(a);
+            }
+
+            let mut out = Vec::with_capacity(n);
+            for c in bytes[..n * elem].chunks_exact(elem) {
+                out.push(f64::from_le_bytes(c.try_into().unwrap()));
+            }
+            a.binary = Some(BinaryData::F64(out));
+        }
+
+        NumericType::Float32 => {
+            let elem = 4usize;
+            let usable = bytes.len() - (bytes.len() % elem);
+            let avail = usable / elem;
+            let want = a.array_length.unwrap_or(avail);
+            let n = want.min(avail);
+
+            if n == 0 {
+                return Ok(a);
+            }
+
+            let mut out = Vec::with_capacity(n);
+            for c in bytes[..n * elem].chunks_exact(elem) {
+                out.push(f32::from_le_bytes(c.try_into().unwrap()));
+            }
+            a.binary = Some(BinaryData::F32(out));
+        }
+
+        NumericType::Int64 => {
+            let elem = 8usize;
+            let usable = bytes.len() - (bytes.len() % elem);
+            let avail = usable / elem;
+            let want = a.array_length.unwrap_or(avail);
+            let n = want.min(avail);
+
+            if n == 0 {
+                return Ok(a);
+            }
+
+            let mut out = Vec::with_capacity(n);
+            for c in bytes[..n * elem].chunks_exact(elem) {
+                out.push(i64::from_le_bytes(c.try_into().unwrap()));
+            }
+            a.binary = Some(BinaryData::I64(out));
+        }
+
+        NumericType::Int32 => {
+            let elem = 4usize;
+            let usable = bytes.len() - (bytes.len() % elem);
+            let avail = usable / elem;
+            let want = a.array_length.unwrap_or(avail);
+            let n = want.min(avail);
+
+            if n == 0 {
+                return Ok(a);
+            }
+
+            let mut out = Vec::with_capacity(n);
+            for c in bytes[..n * elem].chunks_exact(elem) {
+                out.push(i32::from_le_bytes(c.try_into().unwrap()));
+            }
+            a.binary = Some(BinaryData::I32(out));
+        }
+
+        NumericType::Int16 => {
+            let elem = 2usize;
+            let usable = bytes.len() - (bytes.len() % elem);
+            let avail = usable / elem;
+            let want = a.array_length.unwrap_or(avail);
+            let n = want.min(avail);
+
+            if n == 0 {
+                return Ok(a);
+            }
+
+            let mut out = Vec::with_capacity(n);
+            for c in bytes[..n * elem].chunks_exact(elem) {
+                out.push(i16::from_le_bytes(c.try_into().unwrap()));
+            }
+            a.binary = Some(BinaryData::I16(out));
+        }
     }
 
     Ok(a)
@@ -2360,8 +2427,7 @@ fn parse_binary_data_array<R: BufRead>(
 #[derive(Debug, Clone, Copy)]
 struct BinaryArrayFlags {
     is_zlib: bool,
-    is_f64: bool,
-    is_f32: bool,
+    numeric_type: NumericType,
 }
 
 fn has_acc(cv_params: &[CvParam], acc: &str) -> bool {
@@ -2374,19 +2440,30 @@ fn binary_array_flags(binary_data_array: &BinaryDataArray) -> BinaryArrayFlags {
     let cv = &binary_data_array.cv_params;
 
     let is_zlib = has_acc(cv, "MS:1000574");
-    let is_f64 = has_acc(cv, "MS:1000523");
-    let is_f32 = has_acc(cv, "MS:1000521");
 
-    let (is_f64, is_f32) = match (is_f64, is_f32) {
-        (true, false) => (true, false),
-        (false, true) => (false, true),
-        _ => (true, false),
+    let has_f64 = has_acc(cv, "MS:1000523"); // 64-bit float
+    let has_f32 = has_acc(cv, "MS:1000521"); // 32-bit float
+    let has_i64 = has_acc(cv, "MS:1000522"); // 64-bit integer
+
+    let numeric_type = if has_i64 && !has_f64 && !has_f32 {
+        NumericType::Int64
+    } else if has_f64 && !has_f32 && !has_i64 {
+        NumericType::Float64
+    } else if has_f32 && !has_f64 && !has_i64 {
+        NumericType::Float32
+    } else if has_i64 {
+        NumericType::Int64
+    } else if has_f64 {
+        NumericType::Float64
+    } else if has_f32 {
+        NumericType::Float32
+    } else {
+        NumericType::Float64
     };
 
     BinaryArrayFlags {
         is_zlib,
-        is_f64,
-        is_f32,
+        numeric_type,
     }
 }
 

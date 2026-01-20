@@ -447,6 +447,15 @@ pub struct BinaryDataArrayList {
     pub binary_data_arrays: Vec<BinaryDataArray>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Copy, Eq)]
+pub enum NumericType {
+    Float32,
+    Float64,
+    Int16,
+    Int32,
+    Int64,
+}
+
 /// <binaryDataArray>
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BinaryDataArray {
@@ -458,11 +467,17 @@ pub struct BinaryDataArray {
     pub cv_params: Vec<CvParam>,
     pub user_params: Vec<UserParam>,
 
-    pub is_f32: Option<bool>,
-    pub is_f64: Option<bool>,
+    pub numeric_type: Option<NumericType>,
+    pub binary: Option<BinaryData>,
+}
 
-    pub decoded_binary_f32: Vec<f32>,
-    pub decoded_binary_f64: Vec<f64>,
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum BinaryData {
+    F32(Vec<f32>),
+    F64(Vec<f64>),
+    I64(Vec<i64>),
+    I32(Vec<i32>),
+    I16(Vec<i16>),
 }
 
 /// <chromatogramList>

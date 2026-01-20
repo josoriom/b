@@ -8,7 +8,7 @@ use crate::{
         parse_data_processing_list,
         parse_file_description::{
             allowed_from_rows, b000_attr_text, child_params_for_parent, is_child_of,
-            parse_file_description, rows_for_owner, unique_ids,
+            parse_accession_tail, parse_file_description, rows_for_owner, unique_ids,
         },
         parse_global_metadata::parse_global_metadata,
         parse_header, parse_instrument_list, parse_metadata, parse_referenceable_param_group_list,
@@ -21,7 +21,7 @@ use crate::{
     },
 };
 
-const INDEX_ENTRY_SIZE: usize = 32;
+pub const INDEX_ENTRY_SIZE: usize = 32;
 const BLOCK_DIR_ENTRY_SIZE: usize = 32;
 
 const ARRAY_FILTER_NONE: u8 = 0;
@@ -153,7 +153,12 @@ fn parse_run(
     let spec_child_index = ChildIndex::new(&spec_meta);
     let chrom_child_index = ChildIndex::new(&chrom_meta);
 
-    Ok(Run {
+    let spectrum_list = parse_spectrum_list(schema, &spec_meta, &spec_child_index);
+    let chromatogram_list = parse_chromatogram_list(schema, &chrom_meta, &chrom_child_index);
+
+    let (spectra_pairs, chrom_pairs) = parse_binaries(bytes, header)?;
+
+    let mut run = Run {
         id,
         start_time_stamp,
         default_instrument_configuration_ref,
@@ -161,14 +166,18 @@ fn parse_run(
         cv_params,
         user_params,
         source_file_ref_list,
-        spectrum_list: parse_spectrum_list(schema, &spec_meta, &spec_child_index),
-        chromatogram_list: parse_chromatogram_list(schema, &chrom_meta, &chrom_child_index),
+        spectrum_list,
+        chromatogram_list,
         ..Default::default()
-    })
+    };
+
+    attach_pairs_to_run_lists(&mut run, &spectra_pairs, &chrom_pairs);
+
+    Ok(run)
 }
 
 #[derive(Clone, Copy, Debug)]
-struct SpectrumIndexEntry {
+pub struct SpectrumIndexEntry {
     mz_element_off: u64,
     inten_element_off: u64,
     mz_element_len: u32,
@@ -178,7 +187,7 @@ struct SpectrumIndexEntry {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct ChromIndexEntry {
+pub struct ChromIndexEntry {
     time_element_off: u64,
     inten_element_off: u64,
     time_element_len: u32,
@@ -188,7 +197,7 @@ struct ChromIndexEntry {
 }
 
 #[inline]
-fn slice_at<'a>(
+pub fn slice_at<'a>(
     bytes: &'a [u8],
     off: u64,
     len: u64,
@@ -209,13 +218,13 @@ fn slice_at<'a>(
 }
 
 #[inline]
-fn read_u32_le_at(bytes: &[u8], pos: &mut usize, field: &'static str) -> Result<u32, String> {
+pub fn read_u32_le_at(bytes: &[u8], pos: &mut usize, field: &'static str) -> Result<u32, String> {
     let s = take(bytes, pos, 4, field)?;
     Ok(u32::from_le_bytes(s.try_into().unwrap()))
 }
 
 #[inline]
-fn read_u64_le_at(bytes: &[u8], pos: &mut usize, field: &'static str) -> Result<u64, String> {
+pub fn read_u64_le_at(bytes: &[u8], pos: &mut usize, field: &'static str) -> Result<u64, String> {
     let s = take(bytes, pos, 8, field)?;
     Ok(u64::from_le_bytes(s.try_into().unwrap()))
 }
@@ -250,7 +259,7 @@ struct BlockDirEntry {
     uncomp_bytes: u64,
 }
 
-struct ContainerReader<'a> {
+pub struct ContainerReader<'a> {
     bytes: &'a [u8],
     elem_size: usize,
     compression_level: u8,
@@ -263,7 +272,7 @@ struct ContainerReader<'a> {
 
 impl<'a> ContainerReader<'a> {
     #[inline]
-    fn new(
+    pub fn new(
         bytes: &'a [u8],
         block_count: u32,
         elem_size: usize,
@@ -382,7 +391,7 @@ fn byte_unshuffle_into(input: &[u8], output: &mut [u8], elem_size: usize) {
 }
 
 #[derive(Clone, Debug)]
-enum ArrayData {
+pub enum ArrayData {
     F32(Vec<f32>),
     F64(Vec<f64>),
 }
@@ -408,7 +417,7 @@ fn bytes_to_f64_vec(raw: &[u8]) -> Vec<f64> {
 }
 
 #[inline]
-fn compute_block_starts_for_x(
+pub fn compute_block_starts_for_x(
     index: &[SpectrumIndexEntry],
     block_count: u32,
 ) -> Result<Vec<u64>, String> {
@@ -426,7 +435,7 @@ fn compute_block_starts_for_x(
 }
 
 #[inline]
-fn compute_block_starts_for_y(
+pub fn compute_block_starts_for_y(
     index: &[SpectrumIndexEntry],
     block_count: u32,
 ) -> Result<Vec<u64>, String> {
@@ -444,7 +453,7 @@ fn compute_block_starts_for_y(
 }
 
 #[inline]
-fn compute_block_starts_for_cx(
+pub fn compute_block_starts_for_cx(
     index: &[ChromIndexEntry],
     block_count: u32,
 ) -> Result<Vec<u64>, String> {
@@ -545,27 +554,46 @@ fn bda_has_array_kind(bda: &BinaryDataArray, tail: u32) -> bool {
 
 #[inline]
 fn ensure_float_flag(bda: &mut BinaryDataArray, is_f32: bool) {
-    if is_f32 {
-        if !bda
-            .cv_params
-            .iter()
-            .any(|p| p.accession.as_deref() == Some("MS:1000521"))
-        {
-            bda.cv_params.push(ms_float_param(ACC_32BIT_FLOAT));
-        }
-        bda.is_f32 = Some(true);
-        bda.is_f64 = None;
+    let want = if is_f32 {
+        ACC_32BIT_FLOAT
     } else {
-        if !bda
-            .cv_params
-            .iter()
-            .any(|p| p.accession.as_deref() == Some("MS:1000523"))
-        {
-            bda.cv_params.push(ms_float_param(ACC_64BIT_FLOAT));
+        ACC_64BIT_FLOAT
+    };
+    let drop = if is_f32 {
+        ACC_64BIT_FLOAT
+    } else {
+        ACC_32BIT_FLOAT
+    };
+
+    let mut has_want = false;
+
+    let mut i = 0usize;
+    while i < bda.cv_params.len() {
+        let tail = parse_accession_tail(bda.cv_params[i].accession.as_deref());
+
+        if tail == want {
+            has_want = true;
+            i += 1;
+            continue;
         }
-        bda.is_f64 = Some(true);
-        bda.is_f32 = None;
+
+        if tail == drop {
+            bda.cv_params.remove(i);
+            continue;
+        }
+
+        i += 1;
     }
+
+    if !has_want {
+        bda.cv_params.push(ms_float_param(want));
+    }
+
+    bda.numeric_type = Some(if is_f32 {
+        NumericType::Float32
+    } else {
+        NumericType::Float64
+    });
 }
 
 #[inline]
@@ -607,13 +635,17 @@ fn attach_xy_arrays_to_bdal(
     if let Some(bda) = list.binary_data_arrays.get_mut(x_idx) {
         match x {
             ArrayData::F32(v) => {
-                bda.decoded_binary_f32.clone_from(v);
-                bda.decoded_binary_f64.clear();
+                match &mut bda.binary {
+                    Some(BinaryData::F32(dst)) => dst.clone_from(v),
+                    _ => bda.binary = Some(BinaryData::F32(v.clone())),
+                }
                 ensure_float_flag(bda, true);
             }
             ArrayData::F64(v) => {
-                bda.decoded_binary_f64.clone_from(v);
-                bda.decoded_binary_f32.clear();
+                match &mut bda.binary {
+                    Some(BinaryData::F64(dst)) => dst.clone_from(v),
+                    _ => bda.binary = Some(BinaryData::F64(v.clone())),
+                }
                 ensure_float_flag(bda, false);
             }
         }
@@ -622,13 +654,17 @@ fn attach_xy_arrays_to_bdal(
     if let Some(bda) = list.binary_data_arrays.get_mut(y_idx) {
         match y {
             ArrayData::F32(v) => {
-                bda.decoded_binary_f32.clone_from(v);
-                bda.decoded_binary_f64.clear();
+                match &mut bda.binary {
+                    Some(BinaryData::F32(dst)) => dst.clone_from(v),
+                    _ => bda.binary = Some(BinaryData::F32(v.clone())),
+                }
                 ensure_float_flag(bda, true);
             }
             ArrayData::F64(v) => {
-                bda.decoded_binary_f64.clone_from(v);
-                bda.decoded_binary_f32.clear();
+                match &mut bda.binary {
+                    Some(BinaryData::F64(dst)) => dst.clone_from(v),
+                    _ => bda.binary = Some(BinaryData::F64(v.clone())),
+                }
                 ensure_float_flag(bda, false);
             }
         }
@@ -801,4 +837,186 @@ fn parse_source_file_ref_list(
         count,
         source_file_refs,
     })
+}
+
+#[inline]
+fn parse_binaries(
+    bytes: &[u8],
+    header: &Header,
+) -> Result<
+    (
+        Vec<Vec<(ArrayData, ArrayData)>>,
+        Vec<Vec<(ArrayData, ArrayData)>>,
+    ),
+    String,
+> {
+    #[inline]
+    fn fmt_to_elem_size(fmt: u8, field: &'static str) -> Result<usize, String> {
+        match fmt {
+            1 => Ok(4), // f32
+            2 => Ok(8), // f64
+            _ => Err(format!(
+                "{field}: invalid format {fmt} (expected 1=f32 or 2=f64)"
+            )),
+        }
+    }
+
+    let spect_x = slice_at(
+        bytes,
+        header.off_container_spect_x,
+        header.size_container_spect_x,
+        "container_spect_x",
+    )?;
+    let spect_y = slice_at(
+        bytes,
+        header.off_container_spect_y,
+        header.size_container_spect_y,
+        "container_spect_y",
+    )?;
+    let chrom_x = slice_at(
+        bytes,
+        header.off_container_chrom_x,
+        header.size_container_chrom_x,
+        "container_chrom_x",
+    )?;
+    let chrom_y = slice_at(
+        bytes,
+        header.off_container_chrom_y,
+        header.size_container_chrom_y,
+        "container_chrom_y",
+    )?;
+
+    let spect_x_elem = fmt_to_elem_size(header.spect_x_format, "spect_x_format")?;
+    let spect_y_elem = fmt_to_elem_size(header.spect_y_format, "spect_y_format")?;
+    let chrom_x_elem = fmt_to_elem_size(header.chrom_x_format, "chrom_x_format")?;
+    let chrom_y_elem = fmt_to_elem_size(header.chrom_y_format, "chrom_y_format")?;
+
+    let spec_count = header.spectrum_count as usize;
+    let spec_need = (spec_count as u64)
+        .checked_mul(INDEX_ENTRY_SIZE as u64)
+        .ok_or_else(|| "spectrum index size overflow".to_string())?;
+    let spec_raw = slice_at(bytes, header.off_spec_index, spec_need, "spectrum index")?;
+
+    let mut spec_pos = 0usize;
+    let mut spec_index: Vec<SpectrumIndexEntry> = Vec::with_capacity(spec_count);
+    for _ in 0..spec_count {
+        spec_index.push(SpectrumIndexEntry {
+            mz_element_off: read_u64_le_at(spec_raw, &mut spec_pos, "mz_element_off")?,
+            inten_element_off: read_u64_le_at(spec_raw, &mut spec_pos, "inten_element_off")?,
+            mz_element_len: read_u32_le_at(spec_raw, &mut spec_pos, "mz_element_len")?,
+            inten_element_len: read_u32_le_at(spec_raw, &mut spec_pos, "inten_element_len")?,
+            mz_block_id: read_u32_le_at(spec_raw, &mut spec_pos, "mz_block_id")?,
+            inten_block_id: read_u32_le_at(spec_raw, &mut spec_pos, "inten_block_id")?,
+        });
+    }
+
+    let chrom_index = parse_chrom_index(bytes, header)?;
+    let chrom_count = chrom_index.len();
+
+    let spec_starts_x = compute_block_starts_for_x(&spec_index, header.block_count_spect_x)?;
+    let spec_starts_y = compute_block_starts_for_y(&spec_index, header.block_count_spect_y)?;
+    let chrom_starts_x = compute_block_starts_for_cx(&chrom_index, header.block_count_chrom_x)?;
+    let chrom_starts_y = compute_block_starts_for_cy(&chrom_index, header.block_count_chrom_y)?;
+
+    let mut r_spec_x = ContainerReader::new(
+        spect_x,
+        header.block_count_spect_x,
+        spect_x_elem,
+        header.compression_level,
+        header.array_filter,
+    )?;
+    let mut r_spec_y = ContainerReader::new(
+        spect_y,
+        header.block_count_spect_y,
+        spect_y_elem,
+        header.compression_level,
+        header.array_filter,
+    )?;
+    let mut r_chrom_x = ContainerReader::new(
+        chrom_x,
+        header.block_count_chrom_x,
+        chrom_x_elem,
+        header.compression_level,
+        header.array_filter,
+    )?;
+    let mut r_chrom_y = ContainerReader::new(
+        chrom_y,
+        header.block_count_chrom_y,
+        chrom_y_elem,
+        header.compression_level,
+        header.array_filter,
+    )?;
+
+    let mut spectra_pairs: Vec<Vec<(ArrayData, ArrayData)>> = Vec::with_capacity(spec_count);
+    for e in &spec_index {
+        let x = decode_item_array(
+            &mut r_spec_x,
+            &spec_starts_x,
+            e.mz_block_id,
+            e.mz_element_off,
+            e.mz_element_len,
+        )?;
+        let y = decode_item_array(
+            &mut r_spec_y,
+            &spec_starts_y,
+            e.inten_block_id,
+            e.inten_element_off,
+            e.inten_element_len,
+        )?;
+        spectra_pairs.push(vec![(x, y)]);
+    }
+
+    let mut chrom_pairs: Vec<Vec<(ArrayData, ArrayData)>> = Vec::with_capacity(chrom_count);
+    for e in &chrom_index {
+        let x = decode_item_array(
+            &mut r_chrom_x,
+            &chrom_starts_x,
+            e.time_block_id,
+            e.time_element_off,
+            e.time_element_len,
+        )?;
+        let y = decode_item_array(
+            &mut r_chrom_y,
+            &chrom_starts_y,
+            e.inten_block_id,
+            e.inten_element_off,
+            e.inten_element_len,
+        )?;
+        chrom_pairs.push(vec![(x, y)]);
+    }
+
+    Ok((spectra_pairs, chrom_pairs))
+}
+
+#[inline]
+fn attach_pairs_to_run_lists(
+    run: &mut Run,
+    spectra_pairs: &[Vec<(ArrayData, ArrayData)>],
+    chrom_pairs: &[Vec<(ArrayData, ArrayData)>],
+) {
+    if let Some(sl) = run.spectrum_list.as_mut() {
+        for (i, sp) in sl.spectra.iter_mut().enumerate() {
+            let Some(pairs) = spectra_pairs.get(i) else {
+                continue;
+            };
+            let Some((x, y)) = pairs.get(0) else { continue };
+
+            if let Some(bdal) = sp.binary_data_array_list.as_mut() {
+                attach_xy_arrays_to_bdal(bdal, x, y, ACC_MZ_ARRAY, ACC_INTENSITY_ARRAY);
+            }
+        }
+    }
+
+    if let Some(cl) = run.chromatogram_list.as_mut() {
+        for (i, ch) in cl.chromatograms.iter_mut().enumerate() {
+            let Some(pairs) = chrom_pairs.get(i) else {
+                continue;
+            };
+            let Some((x, y)) = pairs.get(0) else { continue };
+
+            if let Some(bdal) = ch.binary_data_array_list.as_mut() {
+                attach_xy_arrays_to_bdal(bdal, x, y, ACC_TIME_ARRAY, ACC_INTENSITY_ARRAY);
+            }
+        }
+    }
 }

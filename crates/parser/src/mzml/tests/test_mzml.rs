@@ -1,6 +1,9 @@
 use std::sync::OnceLock;
 
+use base64::{Engine as _, engine::general_purpose};
+
 use crate::{
+    BinaryData, BinaryDataArray, CvParam, NumericType,
     mzml::structs::MzML,
     utilities::test::{CvRefMode, assert_cv, mzml, spectrum_precursor_list, spectrum_scan_list},
 };
@@ -903,4 +906,227 @@ fn anpc_mzml1_1_0_chromatograms() {
         Some("ms level"),
         Some("dimensionless unit"),
     );
+}
+const EXPECTED_0_9_F64: [f64; 10] = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0];
+const EXPECTED_0_9_F32: [f32; 10] = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0];
+const EXPECTED_0_9_I64: [i64; 10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+#[test]
+fn anpc_mzml_spectrum_scan_1_binaries() {
+    let mzml = mzml(&MZML_CACHE, PATH);
+    let sl = mzml
+        .run
+        .spectrum_list
+        .as_ref()
+        .expect("spectrumList parsed");
+
+    let s0 = &sl.spectra[0];
+    assert_eq!(s0.id, "scan=1");
+
+    let bal = s0
+        .binary_data_array_list
+        .as_ref()
+        .expect("binaryDataArrayList parsed");
+    assert_eq!(bal.binary_data_arrays.len(), 2);
+
+    let mz = &bal.binary_data_arrays[0];
+    let it = &bal.binary_data_arrays[1];
+
+    // m/z array should be f64 (MS:1000523)
+    assert!(
+        mz.cv_params
+            .iter()
+            .any(|p| p.accession.as_deref() == Some("MS:1000523"))
+    );
+    assert_eq!(mz.numeric_type, Some(NumericType::Float64));
+    match mz.binary.as_ref().expect("mz binary present") {
+        BinaryData::F64(v) => assert_eq!(&v[..EXPECTED_0_9_F64.len()], &EXPECTED_0_9_F64),
+        other => panic!("mz expected BinaryData::F64, got {other:?}"),
+    }
+
+    // intensity array should be f32 (MS:1000521)
+    assert!(
+        it.cv_params
+            .iter()
+            .any(|p| p.accession.as_deref() == Some("MS:1000521"))
+    );
+    assert_eq!(it.numeric_type, Some(NumericType::Float32));
+    match it.binary.as_ref().expect("intensity binary present") {
+        BinaryData::F32(v) => assert_eq!(&v[..EXPECTED_0_9_F32.len()], &EXPECTED_0_9_F32),
+        other => panic!("intensity expected BinaryData::F32, got {other:?}"),
+    }
+}
+
+#[test]
+fn anpc_mzml_spectrum_scan_3476_binaries() {
+    let mzml = mzml(&MZML_CACHE, PATH);
+    let sl = mzml
+        .run
+        .spectrum_list
+        .as_ref()
+        .expect("spectrumList parsed");
+
+    let s_last = sl.spectra.last().expect("last spectrum");
+    assert_eq!(s_last.id, "scan=3476");
+
+    let bal = s_last
+        .binary_data_array_list
+        .as_ref()
+        .expect("binaryDataArrayList parsed");
+    assert_eq!(bal.binary_data_arrays.len(), 2);
+
+    let mz = &bal.binary_data_arrays[0];
+    let it = &bal.binary_data_arrays[1];
+
+    // m/z array should be f64 (MS:1000523)
+    assert!(
+        mz.cv_params
+            .iter()
+            .any(|p| p.accession.as_deref() == Some("MS:1000523"))
+    );
+    assert_eq!(mz.numeric_type, Some(NumericType::Float64));
+    match mz.binary.as_ref().expect("mz binary present") {
+        BinaryData::F64(v) => assert_eq!(&v[..EXPECTED_0_9_F64.len()], &EXPECTED_0_9_F64),
+        other => panic!("mz expected BinaryData::F64, got {other:?}"),
+    }
+
+    // intensity array should be f32 (MS:1000521)
+    assert!(
+        it.cv_params
+            .iter()
+            .any(|p| p.accession.as_deref() == Some("MS:1000521"))
+    );
+    assert_eq!(it.numeric_type, Some(NumericType::Float32));
+    match it.binary.as_ref().expect("intensity binary present") {
+        BinaryData::F32(v) => assert_eq!(&v[..EXPECTED_0_9_F32.len()], &EXPECTED_0_9_F32),
+        other => panic!("intensity expected BinaryData::F32, got {other:?}"),
+    }
+}
+
+#[test]
+fn anpc_mzml_chromatogram_tic_binaries() {
+    let mzml = mzml(&MZML_CACHE, PATH);
+    let cl = mzml
+        .run
+        .chromatogram_list
+        .as_ref()
+        .expect("chromatogramList parsed");
+
+    let tic = cl
+        .chromatograms
+        .iter()
+        .find(|c| c.id == "TIC")
+        .expect("TIC chromatogram");
+
+    let bal = tic
+        .binary_data_array_list
+        .as_ref()
+        .expect("binaryDataArrayList parsed");
+    assert_eq!(bal.binary_data_arrays.len(), 3);
+
+    let time = &bal.binary_data_arrays[0];
+    let inten = &bal.binary_data_arrays[1];
+    let ms_level = &bal.binary_data_arrays[2];
+
+    // time array should be f64 (MS:1000523)
+    assert!(
+        time.cv_params
+            .iter()
+            .any(|p| p.accession.as_deref() == Some("MS:1000523"))
+    );
+    assert_eq!(time.numeric_type, Some(NumericType::Float64));
+    match time.binary.as_ref().expect("time binary present") {
+        BinaryData::F64(v) => assert_eq!(&v[..EXPECTED_0_9_F64.len()], &EXPECTED_0_9_F64),
+        other => panic!("time expected BinaryData::F64, got {other:?}"),
+    }
+
+    // intensity array should be f32 (MS:1000521)
+    assert!(
+        inten
+            .cv_params
+            .iter()
+            .any(|p| p.accession.as_deref() == Some("MS:1000521"))
+    );
+    assert_eq!(inten.numeric_type, Some(NumericType::Float32));
+    match inten.binary.as_ref().expect("intensity binary present") {
+        BinaryData::F32(v) => assert_eq!(&v[..EXPECTED_0_9_F32.len()], &EXPECTED_0_9_F32),
+        other => panic!("intensity expected BinaryData::F32, got {other:?}"),
+    }
+
+    // ms level array should be i64 (MS:1000522)
+    assert!(
+        ms_level
+            .cv_params
+            .iter()
+            .any(|p| p.accession.as_deref() == Some("MS:1000522"))
+    );
+    assert_eq!(ms_level.numeric_type, Some(NumericType::Int64));
+    match ms_level.binary.as_ref().expect("ms level binary present") {
+        BinaryData::I64(v) => assert_eq!(&v[..EXPECTED_0_9_I64.len()], &EXPECTED_0_9_I64),
+        other => panic!("ms level expected BinaryData::I64, got {other:?}"),
+    }
+}
+
+#[test]
+fn anpc_mzml_chromatogram_bpc_binaries() {
+    let mzml = mzml(&MZML_CACHE, PATH);
+    let cl = mzml
+        .run
+        .chromatogram_list
+        .as_ref()
+        .expect("chromatogramList parsed");
+
+    let bpc = cl
+        .chromatograms
+        .iter()
+        .find(|c| c.id == "BPC")
+        .expect("BPC chromatogram");
+
+    let bal = bpc
+        .binary_data_array_list
+        .as_ref()
+        .expect("binaryDataArrayList parsed");
+    assert_eq!(bal.binary_data_arrays.len(), 3);
+
+    let time = &bal.binary_data_arrays[0];
+    let inten = &bal.binary_data_arrays[1];
+    let ms_level = &bal.binary_data_arrays[2];
+
+    // time array should be f64 (MS:1000523)
+    assert!(
+        time.cv_params
+            .iter()
+            .any(|p| p.accession.as_deref() == Some("MS:1000523"))
+    );
+    assert_eq!(time.numeric_type, Some(NumericType::Float64));
+    match time.binary.as_ref().expect("time binary present") {
+        BinaryData::F64(v) => assert_eq!(&v[..EXPECTED_0_9_F64.len()], &EXPECTED_0_9_F64),
+        other => panic!("time expected BinaryData::F64, got {other:?}"),
+    }
+
+    // intensity array should be f32 (MS:1000521)
+    assert!(
+        inten
+            .cv_params
+            .iter()
+            .any(|p| p.accession.as_deref() == Some("MS:1000521"))
+    );
+    assert_eq!(inten.numeric_type, Some(NumericType::Float32));
+    match inten.binary.as_ref().expect("intensity binary present") {
+        BinaryData::F32(v) => assert_eq!(&v[..EXPECTED_0_9_F32.len()], &EXPECTED_0_9_F32),
+        other => panic!("intensity expected BinaryData::F32, got {other:?}"),
+    }
+
+    // ms level array should be i64 (MS:1000522)
+    assert!(
+        ms_level
+            .cv_params
+            .iter()
+            .any(|p| p.accession.as_deref() == Some("MS:1000522"))
+    );
+    assert_eq!(ms_level.numeric_type, Some(NumericType::Int64));
+    match ms_level.binary.as_ref().expect("ms level binary present") {
+        BinaryData::I64(v) => assert_eq!(&v[..EXPECTED_0_9_I64.len()], &EXPECTED_0_9_I64),
+        other => panic!("ms level expected BinaryData::I64, got {other:?}"),
+    }
 }

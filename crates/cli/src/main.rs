@@ -356,14 +356,9 @@ struct BinaryDataArrayOut<'a> {
     referenceable_param_group_refs: &'a Vec<ReferenceableParamGroupRef>,
     cv_params: &'a Vec<CvParam>,
     user_params: &'a Vec<UserParam>,
-    is_f32: Option<bool>,
-    is_f64: Option<bool>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    decoded_binary_f32: Option<&'a [f32]>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    decoded_binary_f64: Option<&'a [f64]>,
+    binary: Option<&'a BinaryData>,
 }
 
 #[derive(Serialize)]
@@ -373,6 +368,8 @@ struct BinaryDataArrayListOut<'a> {
 }
 
 fn bda_out<'a>(ba: &'a BinaryDataArray, binary: bool) -> BinaryDataArrayOut<'a> {
+    let binary = if binary { ba.binary.as_ref() } else { None };
+
     BinaryDataArrayOut {
         array_length: ba.array_length,
         encoded_length: ba.encoded_length,
@@ -380,18 +377,7 @@ fn bda_out<'a>(ba: &'a BinaryDataArray, binary: bool) -> BinaryDataArrayOut<'a> 
         referenceable_param_group_refs: &ba.referenceable_param_group_refs,
         cv_params: &ba.cv_params,
         user_params: &ba.user_params,
-        is_f32: ba.is_f32,
-        is_f64: ba.is_f64,
-        decoded_binary_f32: if binary {
-            Some(ba.decoded_binary_f32.as_slice())
-        } else {
-            None
-        },
-        decoded_binary_f64: if binary {
-            Some(ba.decoded_binary_f64.as_slice())
-        } else {
-            None
-        },
+        binary,
     }
 }
 

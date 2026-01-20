@@ -21,15 +21,6 @@ fn read_bytes(path: &str) -> Vec<u8> {
     fs::read(&full).unwrap_or_else(|e| panic!("cannot read {:?}: {}", full, e))
 }
 
-fn read_u32_at(bytes: &[u8], off: usize, little: bool) -> u32 {
-    let b = [bytes[off], bytes[off + 1], bytes[off + 2], bytes[off + 3]];
-    if little {
-        u32::from_le_bytes(b)
-    } else {
-        u32::from_be_bytes(b)
-    }
-}
-
 fn parse_global_metadata_from_test_file() -> Vec<Metadatum> {
     let bytes = read_bytes(PATH);
     let header = parse_header(&bytes).expect("parse_header failed");
@@ -48,7 +39,7 @@ fn parse_global_metadata_from_test_file() -> Vec<Metadatum> {
 
     let meta = parse_global_metadata(
         slice,
-        0, // ignored/derived from the global header inside the section
+        0,
         header.global_meta_count,
         header.global_num_count,
         header.global_str_count,
@@ -72,13 +63,6 @@ fn must_arr<'a>(v: &'a Value, key: &str) -> &'a Vec<Value> {
         .unwrap_or_else(|| panic!("missing key {key:?}"))
         .as_array()
         .unwrap_or_else(|| panic!("key {key:?} is not an array"))
-}
-
-fn must_str<'a>(v: &'a Value, key: &str) -> &'a str {
-    v.get(key)
-        .unwrap_or_else(|| panic!("missing key {key:?}"))
-        .as_str()
-        .unwrap_or_else(|| panic!("key {key:?} is not a string"))
 }
 
 fn find_cv_by_accession<'a>(arr: &'a [Value], accession: &str) -> &'a Value {

@@ -6,6 +6,7 @@ use zstd::bulk::compress as zstd_compress;
 use std::collections::HashMap;
 
 use crate::{
+    BinaryData, NumericType,
     b64::utilities::assign_attributes,
     decode::MetadatumValue,
     mzml::{
@@ -2851,33 +2852,25 @@ fn append_aligned_8(output: &mut Vec<u8>, bytes: &[u8]) -> u64 {
 /// <binaryDataArray>
 #[inline]
 fn array_ref<'a>(ba: &'a BinaryDataArray) -> Option<ArrayRef<'a>> {
+    let bin = ba.binary.as_ref()?;
+
     match bda_declared_is_f64(ba) {
-        Some(false) => {
-            if !ba.decoded_binary_f32.is_empty() {
-                return Some(ArrayRef::F32(&ba.decoded_binary_f32));
-            }
-            if !ba.decoded_binary_f64.is_empty() {
-                return Some(ArrayRef::F64(&ba.decoded_binary_f64));
-            }
-        }
-        Some(true) => {
-            if !ba.decoded_binary_f64.is_empty() {
-                return Some(ArrayRef::F64(&ba.decoded_binary_f64));
-            }
-            if !ba.decoded_binary_f32.is_empty() {
-                return Some(ArrayRef::F32(&ba.decoded_binary_f32));
-            }
-        }
-        None => {
-            if !ba.decoded_binary_f64.is_empty() {
-                return Some(ArrayRef::F64(&ba.decoded_binary_f64));
-            }
-            if !ba.decoded_binary_f32.is_empty() {
-                return Some(ArrayRef::F32(&ba.decoded_binary_f32));
-            }
-        }
+        Some(false) => match bin {
+            BinaryData::F32(v) => Some(ArrayRef::F32(v.as_slice())),
+            BinaryData::F64(v) => Some(ArrayRef::F64(v.as_slice())),
+            _ => None,
+        },
+        Some(true) => match bin {
+            BinaryData::F64(v) => Some(ArrayRef::F64(v.as_slice())),
+            BinaryData::F32(v) => Some(ArrayRef::F32(v.as_slice())),
+            _ => None,
+        },
+        None => match bin {
+            BinaryData::F64(v) => Some(ArrayRef::F64(v.as_slice())),
+            BinaryData::F32(v) => Some(ArrayRef::F32(v.as_slice())),
+            _ => None,
+        },
     }
-    None
 }
 
 #[inline]
@@ -2952,11 +2945,12 @@ fn set_u64_at(buf: &mut [u8], offset: usize, value: u64) {
 
 #[inline]
 fn bda_declared_is_f64(ba: &BinaryDataArray) -> Option<bool> {
-    if ba.is_f64 == Some(true) {
-        return Some(true);
-    }
-    if ba.is_f32 == Some(true) {
-        return Some(false);
+    if let Some(nt) = ba.numeric_type.as_ref() {
+        return match nt {
+            NumericType::Float64 => Some(true),
+            NumericType::Float32 => Some(false),
+            _ => None,
+        };
     }
 
     let mut saw32 = false;
@@ -2967,6 +2961,9 @@ fn bda_declared_is_f64(ba: &BinaryDataArray) -> Option<bool> {
             ACC_32BIT_FLOAT => saw32 = true,
             ACC_64BIT_FLOAT => saw64 = true,
             _ => {}
+        }
+        if saw32 && saw64 {
+            break;
         }
     }
 
