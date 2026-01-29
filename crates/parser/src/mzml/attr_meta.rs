@@ -180,3 +180,49 @@ pub fn attr_key_from_tail(accession_tail: u32) -> Option<&'static str> {
     };
     Some(key)
 }
+
+#[inline]
+pub fn attr_tail_from_key(key: &str) -> Option<u32> {
+    Some(match key {
+        "id" => ACC_ATTR_ID,
+        "ref" => ACC_ATTR_REF,
+        "name" => ACC_ATTR_NAME,
+        "location" => ACC_ATTR_LOCATION,
+
+        "cvID" => ACC_ATTR_CV_ID,
+        "fullName" => ACC_ATTR_CV_FULL_NAME,
+        "version" => ACC_ATTR_VERSION,
+        "URI" => ACC_ATTR_CV_URI,
+        "label" => ACC_ATTR_LABEL,
+
+        "startTimeStamp" => ACC_ATTR_START_TIME_STAMP,
+        "defaultInstrumentConfigurationRef" => ACC_ATTR_DEFAULT_INSTRUMENT_CONFIGURATION_REF,
+        "defaultSourceFileRef" => ACC_ATTR_DEFAULT_SOURCE_FILE_REF,
+        "sampleRef" => ACC_ATTR_SAMPLE_REF,
+
+        "defaultDataProcessingRef" => ACC_ATTR_DEFAULT_DATA_PROCESSING_REF,
+        "dataProcessingRef" => ACC_ATTR_DATA_PROCESSING_REF,
+        "sourceFileRef" => ACC_ATTR_SOURCE_FILE_REF,
+
+        "nativeID" => ACC_ATTR_NATIVE_ID,
+        "spotID" => ACC_ATTR_SPOT_ID,
+        "externalSpectrumID" => ACC_ATTR_EXTERNAL_SPECTRUM_ID,
+        "spectrumRef" => ACC_ATTR_SPECTRUM_REF,
+
+        "scanSettingsRef" => ACC_ATTR_SCAN_SETTINGS_REF,
+        "instrumentConfigurationRef" => ACC_ATTR_INSTRUMENT_CONFIGURATION_REF,
+
+        "softwareRef" => ACC_ATTR_SOFTWARE_REF,
+
+        "count" => ACC_ATTR_COUNT,
+        "order" => ACC_ATTR_ORDER,
+        "index" => ACC_ATTR_INDEX,
+        "scanNumber" => ACC_ATTR_SCAN_NUMBER,
+        "defaultArrayLength" => ACC_ATTR_DEFAULT_ARRAY_LENGTH,
+        "arrayLength" => ACC_ATTR_ARRAY_LENGTH,
+        "encodedLength" => ACC_ATTR_ENCODED_LENGTH,
+        "msLevel" => ACC_ATTR_MS_LEVEL,
+
+        _ => return None,
+    })
+}

@@ -5,7 +5,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::b64::decode::{Metadatum, MetadatumValue};
-use crate::mzml::attr_meta::{CV_REF_ATTR, attr_key_from_tail};
+use crate::mzml::attr_meta::{CV_REF_ATTR, attr_key_from_tail, attr_tail_from_key};
 use crate::mzml::schema::{SchemaNode, TagId, schema};
 
 static XMLKEY_TO_TAIL: OnceLock<HashMap<&'static str, u32>> = OnceLock::new();
@@ -19,7 +19,6 @@ struct FieldSpec {
     id_variant: Option<String>,
     uri_variant: Option<String>,
 }
-
 pub fn assign_attributes<T>(
     expected: &T,
     tag_id: TagId,
@@ -141,13 +140,46 @@ where
     }
 
     #[inline]
-    fn build_xmlkey_to_tail() -> HashMap<&'static str, u32> {
-        let mut m: HashMap<&'static str, u32> = HashMap::with_capacity(4096);
-        for tail in 9_900_000u32..=9_920_000u32 {
-            if let Some(k) = attr_key_from_tail(tail) {
-                m.insert(k, tail);
+    fn collect_xml_keys(n: &SchemaNode, out: &mut Vec<String>) {
+        for xml_keys in n.attributes.values() {
+            for k in xml_keys {
+                out.push(k.clone());
             }
         }
+        for c in n.children.values() {
+            collect_xml_keys(c, out);
+        }
+    }
+
+    #[inline]
+    fn build_xmlkey_to_tail() -> HashMap<&'static str, u32> {
+        let tree = schema();
+        let mut keys: Vec<String> = Vec::new();
+        for root in tree.roots.values() {
+            collect_xml_keys(root, &mut keys);
+        }
+
+        keys.sort();
+        keys.dedup();
+
+        let mut m: HashMap<&'static str, u32> = HashMap::with_capacity(keys.len());
+
+        for k in keys {
+            let Some(tail) = attr_tail_from_key(k.as_str()) else {
+                continue;
+            };
+
+            if let Some(&prev) = m.get(k.as_str()) {
+                if prev == tail {
+                    continue;
+                }
+                continue;
+            }
+
+            let kk: &'static str = Box::leak(k.into_boxed_str());
+            m.insert(kk, tail);
+        }
+
         m
     }
 
@@ -166,16 +198,18 @@ where
         let mut specs: Vec<FieldSpec> = Vec::with_capacity(node.attributes.len());
 
         for (field_key, xml_keys) in node.attributes.iter() {
-            let xml_key = xml_keys
-                .first()
-                .unwrap_or_else(|| panic!("schema attribute {field_key:?} has empty xml key list"));
+            let mut tail: Option<u32> = None;
 
-            let tail = *xmlkey_to_tail.get(xml_key.as_str()).unwrap_or_else(|| {
-                panic!(
-                    "no B000 tail mapping for xml attribute key {xml_key:?} \
-                     (field {field_key:?}, tag {tag_id:?})"
-                )
-            });
+            for k in xml_keys {
+                if let Some(&t) = xmlkey_to_tail.get(k.as_str()) {
+                    tail = Some(t);
+                    break;
+                }
+            }
+
+            let Some(tail) = tail else {
+                continue;
+            };
 
             let (camel, id_variant, uri_variant) = snake_to_camel_variants(field_key.as_str());
 
